@@ -2,7 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { ToastProvider } from './context/ToastContext'
+import { AlumnoActivoProvider } from './context/AlumnoActivoContext'
 import Layout from './components/layout/Layout'
+import PortalShell from './components/layout/portal/PortalShell'
+import PortalHome from './pages/portal/Home'
+import PortalPagos from './pages/portal/Pagos'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alumnos from './pages/Alumnos'
@@ -36,6 +40,11 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
+        {/* Portal Alumno/Tutor: sin guard de rol todavía, el login del portal no existe (ver Claude.md) */}
+        <Route path="/portal" element={<AlumnoActivoProvider><PortalShell /></AlumnoActivoProvider>}>
+          <Route index element={<PortalHome />} />
+          <Route path="pagos" element={<PortalPagos />} />
+        </Route>
         <Route path="/" element={appLayout}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />

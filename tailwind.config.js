@@ -7,6 +7,7 @@ export default {
         primary: '#6D5AE6',
         'primary-dark': '#5647c8',
         'primary-light': '#EEE9FF',
+        'primary-subtle': '#FDF8F3',
         sidebar: '#1E1147',
         'sidebar-end': '#2D1B69',
       },
