@@ -159,12 +159,33 @@ nuevo.
   mockups **no tienen respaldo en el modelo de datos todavía** y quedan
   pausadas hasta coordinar con la otra parte del equipo:
   - Sistema de entradas con mapa de butacas y QR (Eventos) — no hay tablas
-    de asientos/entradas en el modelo que se venía usando.
+    de asientos/entradas en el modelo que se venía usando. La tarjeta
+    "Próx. evento" de Home sí queda (usa `proximoEventoDemo`, dato simple
+    sin tabla de entradas/butacas) — lo pausado es el flujo de compra con
+    mapa de butacas y QR, no la tarjeta informativa.
   - "Vestuario" y "Fotos recientes / Galería" — features sin tabla propia.
-  Al construir Home, estos dos widgets van con un estado tipo "Próximamente"
-  (deshabilitado, visible pero no funcional) en vez de omitirse del todo o
-  inventarse datos falsos — mismo criterio que se usó con el botón "Pagar"
-  deshabilitado en el proyecto viejo mientras no había integración de pago.
+    **Se sacaron del todo de Home** (ni siquiera en estado "Próximamente")
+    — decisión revisada en la fase de pulido, ver "Decisiones de producto"
+    abajo. El criterio de "Próximamente" (deshabilitado, visible pero no
+    funcional) sigue vigente para otras features pendientes de modelo de
+    datos que si se agreguen a futuro — acá se decidió directamente no
+    mostrar el placeholder porque no aportaba nada sin fecha de entrega
+    prevista.
+
+## Decisiones de producto
+
+- **Las tarjetas de Home son accesos directos a sus páginas.** Cuando una
+  tarjeta del grid tiene una página real detrás, es clickeable y navega
+  ahí (ej. "Cuotas pendientes" → `/portal/pagos`). Si todavía no tiene
+  página propia (ej. "Clases por semana"), la tarjeta queda visualmente
+  igual pero sin `onClick` ni cursor de puntero — no se simula
+  interactividad que no lleva a ningún lado.
+- **Eventos se accede desde una tarjeta de Home, no desde el nav inferior.**
+  El `BottomNav` tiene 5 slots fijos (Inicio/Pagos/Asistencia/Grupos/Notas)
+  y no hay lugar para un sexto ítem "Eventos". La tarjeta "Próx. evento"
+  (ancho completo, segunda fila del grid) es la puerta de entrada — hoy es
+  informativa nomás (no clickeable todavía, no hay página de Eventos), pero
+  el lugar ya está reservado para cuando exista.
 
 ## Estado de avance
 
@@ -188,7 +209,81 @@ nuevo.
   badge correcto (Pendiente/Pagado×3/Parcial/Vencido), el botón Pagar está
   deshabilitado con tooltip "Integración de pago pendiente", y la navegación
   Home → Pagos → Home por `BottomNav` no rompe nada.
-- ⏳ Pendiente: resto de páginas del portal (`Asistencia`, `Grupos`,
+- ✅ **Fase 3 — Pulido de Home** (completada): se sacaron del todo la
+  tarjeta "Vestuario" y la sección "Fotos recientes" (ver arriba); grid
+  reacomodado a 3 tarjetas (`grid-cols-2`, Cuotas + Horarios en la primera
+  fila, Próx. evento con `col-span-2` en la segunda); tarjeta "Cuotas
+  pendientes" ahora es clickeable (`useNavigate` → `/portal/pagos`, con
+  `hover:shadow-card-md`); Horarios y Próx. evento quedan sin `onClick` a
+  propósito. Verificado con Playwright: sin Vestuario/Fotos recientes en el
+  DOM, click en Horarios/Próx. evento no navega, click en Cuotas navega a
+  Pagos, sin errores de consola.
+- ✅ **Fase 4 — Pulido de Pagos** (completada): `cargosDemo` (cargos
+  pagados) suma `metodo` y `comprobante`; `utils/format.js` agrega
+  `infoMetodoPago(metodo)` y el color de `parcial` en `badgeEstadoCargo` se
+  separó del de `pendiente`; `components/portal/ComprobanteModal.jsx`
+  (nuevo) sobre el `Modal` de `components/ui/`, con ícono de check verde,
+  número de comprobante, alumno, concepto, método (con ícono), fecha, total
+  y botón "Compartir" (`navigator.share()` con fallback a
+  `navigator.clipboard`); las filas pagadas del historial de
+  `pages/portal/Pagos.jsx` abren el modal al tocarlas; la tarjeta de
+  "próximo cargo pendiente" se reemplaza por el `EmptyState` de
+  `components/ui/` cuando el total pendiente (pendiente + parcial) da $0.
+  Verificado con Playwright: los 3 comprobantes muestran los datos
+  correctos de cada cargo, el badge de "Parcial" es visualmente distinto de
+  "Pendiente"/"Vencido", y se probó vaciando `cargosDemo` de pendientes
+  (viendo el `EmptyState`) y revirtiendo el mock después — confirmado con
+  `git diff` que quedó igual que antes salvo los campos nuevos del paso 1.
+- ✅ **Fase 5 — Página de Asistencia** (completada): `mock/fixtures.js`
+  suma `grupoAsistenciaDemo` (`{ nombre, mesLabel }`), `umbralAsistenciaDemo`
+  (75, mapea a `configuracion_sistema.umbral_asistencia_alerta` del modelo
+  real) y `asistenciasDemo` pasa a tener `diaLabel` en vez de `grupo` por
+  fila (un solo grupo por vista, no hace falta repetirlo en cada registro);
+  `utils/format.js` suma `evaluarAsistencia(porcentaje, umbral)`;
+  `pages/portal/Asistencia.jsx` (nueva) con resumen del mes (fondo verde
+  claro), detalle por clase con `Badge` (✓ Presente / Ausente) y footer con
+  el umbral + mensaje de `evaluarAsistencia`. La tarjeta de asistencia en
+  Home ahora es clickeable (mismo criterio que "Cuotas") y usa
+  `grupoAsistenciaDemo` en vez de leer `grupo` de la primera asistencia
+  (ese campo ya no existe en el mock). Ruta `path="asistencia"` agregada;
+  `BottomNav` ya apuntaba ahí, no hizo falta tocarlo. Verificado con
+  Playwright: el % coincide entre Home (83%) y Asistencia (83%, mismo hook
+  y mismo cálculo), Home → Asistencia navega bien, y se probó subiendo
+  `umbralAsistenciaDemo` a 90 (por encima del 83% del mock) para ver el
+  mensaje "por debajo de ese mínimo" — revertido después, confirmado con
+  `git diff`.
+- ✅ **Fase 6 — Pulido de Asistencia: color por umbral + selector de mes**
+  (completada): `asistenciasDemo` ahora cubre Septiembre (por encima del
+  umbral) y Agosto (por debajo, para probar el caso ámbar); se sacó
+  `diaLabel` (era temporal, anotado como tal en la Fase 5) — el día de
+  clase se calcula de verdad con `formatDiaClase(fecha)`, que además
+  corrigió un error que tenía el mock viejo (`diaLabel: 'Miércoles 03/09'`
+  para el 2026-09-03, que en realidad es jueves). `grupoAsistenciaDemo`
+  también pierde `mesLabel` (quedó solo `{ nombre }`) — con pestañas de mes
+  reales, un mes fijo en el subtítulo del header quedaba desactualizado en
+  cuanto se cambiaba de pestaña. `utils/format.js` suma
+  `agruparAsistenciasPorMes()`, `formatMesLabel()` (portada del duplicado
+  que ya existía sin exportar en `Pagos.jsx` — `Pagos.jsx` ahora usa la
+  versión compartida) y `evaluarAsistencia()` gana un campo `classes`
+  (verde/ámbar según `alCorriente`). `pages/portal/Asistencia.jsx` suma
+  pestañas de mes (más antiguo a más reciente, mes más reciente
+  seleccionado por defecto) y todo el bloque de resumen + footer + el
+  número grande reacciona al mismo criterio de color. Home también pasa a
+  mostrar el mes más reciente (antes promediaba todas las asistencias del
+  mock, que ahora abarcan dos meses) y le pasa `umbral={umbralAsistenciaDemo}`
+  explícito a `RadialProgress` en vez de confiar en su default interno, para
+  que Home y Asistencia no puedan desincronizarse aunque cambie el umbral.
+  `RadialProgress.jsx` no necesitó cambios de código — ya recibía `umbral`
+  como prop con default 75 desde la Fase 1, exactamente como pedía esta
+  fase. Verificado con Playwright: Septiembre se ve verde (83%, por encima
+  del 75%), Agosto se ve ámbar (40%, por debajo), mismo criterio de color
+  en ambos sin tocar nada a mano; Home sigue mostrando 83% (coincide con la
+  pestaña de Septiembre); Pagos se probó de nuevo tras el cambio de
+  `formatPeriodo`→`formatMesLabel` y sigue sin errores.
+- 💡 **Decisiones pendientes:** justificar inasistencias
+  (`asistencia.justificada` / `asistencia.motivo`, campo nuevo) — a
+  proponerle a la compañera, no se construye todavía.
+- ⏳ Pendiente: resto de páginas del portal (`Grupos`,
   `Evaluaciones`, `Perfil`, `Notificaciones`, `SeleccionarAlumno`), guard de
   rol (`RequireRole`), login real.
 
@@ -248,6 +343,41 @@ nuevo.
   tarea, pero se corrigió al detectarlo durante la verificación con
   Playwright porque afectaba directamente el criterio que esta fase pedía
   centralizar.
+- **`infoMetodoPago()` devuelve un `icono` como string, no un componente.**
+  El spec sugería emojis (💵🏦💳) salvo que ya hubiera un sistema de íconos
+  SVG propio — no hay un componente de íconos dedicado en `components/ui/`,
+  pero **todo el repo** (admin y portal, cada página) ya usa `lucide-react`
+  de forma consistente y no hay un solo emoji en ningún lado. Meter emojis
+  al lado de eso rompía esa consistencia, así que se usó `lucide-react`
+  igual. Para que `utils/format.js` siga siendo puro (sin React),
+  `infoMetodoPago` devuelve una clave (`'banknote' | 'landmark' |
+  'credit-card'`) en vez del componente — el mapeo clave→ícono vive en
+  `components/portal/ComprobanteModal.jsx` (`IconoMetodoPago`, export
+  nombrado que también usa `Pagos.jsx` para no duplicarlo).
+- **El color de `parcial` en `badgeEstadoCargo` (`bg-blue-50 text-blue-700`)
+  no es el que se ve en pantalla.** `Pagos.jsx` renderiza los badges con el
+  componente `Badge` de `components/ui/` (no con las clases crudas de
+  `badgeEstadoCargo`), mapeando la etiqueta a uno de los 5 colores fijos de
+  `Badge` (`Parcial` → `color="blue"`, que en `Badge.jsx` es
+  `bg-primary-light`/violeta, no el azul literal de Tailwind). Las clases
+  que devuelve `format.js` quedan como dato puro disponible para quien
+  renderice sin pasar por `Badge`; visualmente "Parcial" ya se distingue
+  bien de "Pendiente" (ámbar) y "Vencido" (rojo) por el color de `Badge`.
+  No se tocó `Badge.jsx` para agregar un color azul literal — es de mi
+  compañera, y el criterio de "reusar tal cual" pesó más que igualar el
+  hex exacto que sugería el spec.
+- **`components/portal/` es una carpeta nueva**, distinta de
+  `components/layout/portal/`. La convención que quedó: layout/shell del
+  portal (`PortalShell`, `PortalHeader`, `BottomNav`) va en
+  `components/layout/portal/`; componentes de una página específica del
+  portal (como `ComprobanteModal`, propio de Pagos) van en
+  `components/portal/`, sin `layout/`.
+- **Badge "Ausente" usa `color="red"`, no un rosa literal.** El spec de
+  Asistencia pedía "Ausente rosa" — `Badge.jsx` no tiene un color rosa en
+  su paleta fija (green/red/yellow/blue/gray), y su `red`
+  (`bg-red-50 text-red-600`) ya es un tono rosado/suave, no un rojo fuerte.
+  Mismo criterio que con "Vencido" en Pagos: no se tocó `Badge.jsx` para
+  agregar una variante nueva, se usó la más parecida de las que ya existen.
 
 ## Flujo de trabajo
 

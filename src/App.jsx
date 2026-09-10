@@ -7,6 +7,7 @@ import Layout from './components/layout/Layout'
 import PortalShell from './components/layout/portal/PortalShell'
 import PortalHome from './pages/portal/Home'
 import PortalPagos from './pages/portal/Pagos'
+import PortalAsistencia from './pages/portal/Asistencia'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alumnos from './pages/Alumnos'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/portal" element={<AlumnoActivoProvider><PortalShell /></AlumnoActivoProvider>}>
           <Route index element={<PortalHome />} />
           <Route path="pagos" element={<PortalPagos />} />
+          <Route path="asistencia" element={<PortalAsistencia />} />
         </Route>
         <Route path="/" element={appLayout}>
           <Route index element={<Navigate to="/dashboard" replace />} />

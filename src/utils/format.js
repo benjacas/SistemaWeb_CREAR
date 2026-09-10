@@ -37,7 +37,7 @@ export function esCargoVencido(cargo) {
 
 const ESTADOS_CARGO = {
   pagado: { label: 'Pagado', classes: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
-  parcial: { label: 'Parcial', classes: 'bg-primary-light text-primary ring-1 ring-purple-200' },
+  parcial: { label: 'Parcial', classes: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
   pendiente: { label: 'Pendiente', classes: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
 }
 
@@ -50,8 +50,58 @@ export function obtenerBadgeCargo(cargo) {
   return badgeEstadoCargo(cargo.estado) // pendiente / pagado / parcial
 }
 
+// `icono` es una clave, no un componente — este módulo es puro (sin React).
+// Quien renderiza (Pagos.jsx, ComprobanteModal.jsx) mapea la clave a un
+// ícono real. Se usan íconos SVG en vez de emojis para no mezclar dos
+// sistemas de íconos: todo el resto del repo (admin y portal) ya usa
+// lucide-react para esto, no hay un set de íconos propios en components/ui/.
+const METODOS_PAGO = {
+  efectivo: { label: 'Efectivo', icono: 'banknote' },
+  transferencia: { label: 'Transferencia', icono: 'landmark' },
+  mercadopago: { label: 'Mercado Pago', icono: 'credit-card' },
+}
+
+export function infoMetodoPago(metodo) {
+  return METODOS_PAGO[metodo] ?? { label: metodo ?? '—', icono: 'banknote' }
+}
+
 export function calcularPorcentajeAsistencia(asistencias) {
   if (!asistencias || asistencias.length === 0) return 0
   const presentes = asistencias.filter((a) => a.presente).length
   return Math.round((presentes / asistencias.length) * 100)
+}
+
+export function evaluarAsistencia(porcentaje, umbral) {
+  const alCorriente = porcentaje >= umbral
+  return {
+    alCorriente,
+    mensaje: alCorriente ? 'Hoy está por encima de ese mínimo.' : 'Hoy está por debajo de ese mínimo.',
+    classes: alCorriente ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700',
+  }
+}
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+
+export function formatDiaClase(fechaISO) {
+  const fecha = new Date(fechaISO + 'T00:00:00')
+  const dia = DIAS[fecha.getDay()]
+  const [, mes, diaNum] = fechaISO.split('-')
+  return `${dia.charAt(0).toUpperCase()}${dia.slice(1)} ${diaNum}/${mes}`
+}
+
+export function agruparAsistenciasPorMes(asistencias) {
+  const porMes = {}
+  for (const a of asistencias) {
+    const clave = a.fecha.slice(0, 7) // '2026-09'
+    if (!porMes[clave]) porMes[clave] = []
+    porMes[clave].push(a)
+  }
+  return porMes // { '2026-09': [...], '2026-08': [...] }
+}
+
+export function formatMesLabel(periodo) {
+  const texto = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(
+    new Date(`${periodo}-01T00:00:00`)
+  )
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }

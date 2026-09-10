@@ -1,27 +1,19 @@
-import { useContext } from 'react'
-import { Wallet, CalendarCheck2 } from 'lucide-react'
+import { useContext, useState } from 'react'
+import { Wallet, CalendarCheck2, CheckCircle2 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
 import Button from '../../components/ui/Button'
+import EmptyState from '../../components/ui/EmptyState'
+import ComprobanteModal, { IconoMetodoPago } from '../../components/portal/ComprobanteModal'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useCargos } from '../../hooks/useCargos'
-import { formatMoneda, formatFecha, obtenerBadgeCargo } from '../../utils/format'
+import { formatMoneda, formatFecha, formatMesLabel, obtenerBadgeCargo, infoMetodoPago } from '../../utils/format'
 
 const COLOR_BADGE_POR_LABEL = {
   Pagado: 'green',
   Pendiente: 'yellow',
   Parcial: 'blue',
   Vencido: 'red',
-}
-
-function capitalizar(texto) {
-  return texto.charAt(0).toUpperCase() + texto.slice(1)
-}
-
-function formatPeriodo(periodo) {
-  return capitalizar(
-    new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(new Date(`${periodo}-01T00:00:00`))
-  )
 }
 
 function BadgeCargo({ cargo }) {
@@ -32,6 +24,7 @@ function BadgeCargo({ cargo }) {
 export default function Pagos() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
   const { cargos, cargando } = useCargos(alumnoActivo?.id)
+  const [cargoComprobante, setCargoComprobante] = useState(null)
 
   if (cargando) return <Spinner className="mt-20" />
 
@@ -68,14 +61,20 @@ export default function Pagos() {
             <CalendarCheck2 size={18} className="text-emerald-500" />
           </div>
           <p className="text-lg font-bold text-gray-800 leading-tight">
-            {alDiaDesde ? formatPeriodo(alDiaDesde) : '—'}
+            {alDiaDesde ? formatMesLabel(alDiaDesde) : '—'}
           </p>
           <p className="text-xs text-gray-400">Al día desde</p>
         </div>
       </div>
 
       {/* Próximo cargo pendiente */}
-      {proximoPendiente ? (
+      {pendienteTotal === 0 ? (
+        <EmptyState
+          icon={CheckCircle2}
+          title="¡Estás al día!"
+          description="No tenés cuotas pendientes."
+        />
+      ) : proximoPendiente ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -94,33 +93,53 @@ export default function Pagos() {
             Pagar
           </Button>
         </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 text-center">
-          <p className="text-sm font-semibold text-emerald-600">¡Estás al día!</p>
-          <p className="text-xs text-gray-400 mt-1">No hay cuotas pendientes</p>
-        </div>
-      )}
+      ) : null}
 
       {/* Historial */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-3">Historial</h3>
         <ul className="space-y-1">
-          {historial.map((cargo) => (
-            <li key={cargo.id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-primary-subtle transition-colors">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{cargo.concepto}</p>
-                <p className="text-xs text-gray-400">
-                  {cargo.estado === 'pagado' ? `Pagado el ${formatFecha(cargo.fecha_pago)}` : formatPeriodo(cargo.periodo)}
-                </p>
-              </div>
-              <div className="text-right shrink-0 space-y-1">
-                <p className="text-sm font-semibold text-gray-800">{formatMoneda(cargo.monto_final)}</p>
-                <BadgeCargo cargo={cargo} />
-              </div>
-            </li>
-          ))}
+          {historial.map((cargo) => {
+            const pagado = cargo.estado === 'pagado'
+            return (
+              <li
+                key={cargo.id}
+                onClick={pagado ? () => setCargoComprobante(cargo) : undefined}
+                className={`flex items-center justify-between gap-2 p-2.5 rounded-xl transition-colors ${
+                  pagado ? 'cursor-pointer hover:bg-primary-subtle' : ''
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{cargo.concepto}</p>
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    {pagado ? (
+                      <>
+                        Pagado el {formatFecha(cargo.fecha_pago, { conAnio: false })}
+                        <span className="mx-0.5">·</span>
+                        <IconoMetodoPago metodo={cargo.metodo} size={12} className="text-gray-400" />
+                        {infoMetodoPago(cargo.metodo).label}
+                      </>
+                    ) : (
+                      formatMesLabel(cargo.periodo)
+                    )}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 space-y-1">
+                  <p className="text-sm font-semibold text-gray-800">{formatMoneda(cargo.monto_final)}</p>
+                  <BadgeCargo cargo={cargo} />
+                </div>
+              </li>
+            )
+          })}
         </ul>
       </div>
+
+      <ComprobanteModal
+        isOpen={cargoComprobante !== null}
+        onClose={() => setCargoComprobante(null)}
+        cargo={cargoComprobante}
+        alumno={alumnoActivo}
+      />
     </div>
   )
 }
