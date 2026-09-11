@@ -78,7 +78,12 @@ export default function Home() {
           value={cuotasPendientes}
           onClick={() => navigate('/portal/pagos')}
         />
-        <InfoCard icon={Clock} label="Clases por semana" value={horariosResumenDemo.cantidadPorSemana} />
+        <InfoCard
+          icon={Clock}
+          label="Clases por semana"
+          value={horariosResumenDemo.cantidadPorSemana}
+          onClick={() => navigate('/portal/horarios')}
+        />
         <InfoCard
           icon={PartyPopper}
           label={proximoEventoDemo.titulo}

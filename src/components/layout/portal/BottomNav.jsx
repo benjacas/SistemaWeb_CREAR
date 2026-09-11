@@ -5,8 +5,8 @@ const links = [
   { to: '/portal', label: 'Inicio', icon: Home, end: true },
   { to: '/portal/pagos', label: 'Pagos', icon: Wallet },
   { to: '/portal/asistencia', label: 'Asistencia', icon: CalendarCheck },
-  { to: '/portal/grupos', label: 'Grupos', icon: Users },
-  { to: '/portal/evaluaciones', label: 'Notas', icon: NotebookPen },
+  { to: '/portal/clases', label: 'Clases', icon: Users },
+  { to: '/portal/evaluaciones', label: 'Evaluaciones', icon: NotebookPen },
 ]
 
 export default function BottomNav() {

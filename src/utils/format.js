@@ -21,7 +21,7 @@ export function formatFecha(fechaISO, options = {}) {
 // Fecha de hoy en horario local como 'YYYY-MM-DD'. `toISOString()` da la
 // fecha en UTC, que en Argentina (UTC-3) queda un día adelantada durante la
 // noche — comparar contra eso marcaba cargos como vencidos antes de tiempo.
-function hoyLocalISO() {
+export function hoyLocalISO() {
   const ahora = new Date()
   const offsetMs = ahora.getTimezoneOffset() * 60000
   return new Date(ahora.getTime() - offsetMs).toISOString().slice(0, 10)
@@ -104,4 +104,114 @@ export function formatMesLabel(periodo) {
     new Date(`${periodo}-01T00:00:00`)
   )
   return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+export function estadoCupo(clase) {
+  if (clase.cupoDisponible === 0) return { lleno: true, label: 'Cupo lleno' }
+  if (clase.cupoDisponible <= 2) return { lleno: false, label: `¡Últimos ${clase.cupoDisponible} lugares!` }
+  return { lleno: false, label: `${clase.cupoDisponible} lugares disponibles` }
+}
+
+export function promedioNotas(notas) {
+  if (!notas?.length) return null
+  const suma = notas.reduce((acc, n) => acc + n, 0)
+  return Math.round((suma / notas.length) * 10) / 10
+}
+
+export function promedioExamen(examen) {
+  return promedioNotas(examen.detalle.map((d) => d.nota))
+}
+
+export function promedioGeneral(evaluaciones) {
+  return promedioNotas(evaluaciones.flatMap((e) => e.detalle.map((d) => d.nota)))
+}
+
+export function iniciales(nombreCompleto) {
+  return nombreCompleto
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((palabra) => palabra[0].toUpperCase())
+    .join('')
+}
+
+// `icono` es una clave, no un emoji — mismo criterio que `infoMetodoPago`:
+// todo el repo usa lucide-react para íconos, así que se mapea a un ícono
+// SVG real en la página que renderiza (Notificaciones.jsx), no acá.
+const TIPOS_NOTIFICACION = {
+  vencimiento: { label: 'Pagos', classes: 'bg-amber-50 text-amber-600', icono: 'credit-card' },
+  horario: { label: 'Horarios', classes: 'bg-blue-50 text-blue-600', icono: 'calendar-clock' },
+  evaluacion: { label: 'Evaluaciones', classes: 'bg-purple-50 text-purple-600', icono: 'star' },
+  evento: { label: 'Eventos', classes: 'bg-pink-50 text-pink-600', icono: 'party-popper' },
+  pago: { label: 'Pagos', classes: 'bg-emerald-50 text-emerald-600', icono: 'check-circle' },
+}
+
+export function infoTipoNotificacion(tipo) {
+  return TIPOS_NOTIFICACION[tipo] ?? { label: 'Aviso', classes: 'bg-gray-100 text-gray-500', icono: 'bell' }
+}
+
+export function formatFechaRelativa(fechaISO) {
+  const dias = Math.floor((Date.now() - new Date(fechaISO)) / 86400000)
+  if (dias === 0) return 'Hoy'
+  if (dias === 1) return 'Ayer'
+  if (dias < 7) return `Hace ${dias} días`
+  return formatFecha(fechaISO.split('T')[0])
+}
+
+export function estadoAptoFisico(alumno, plazoDias) {
+  if (!alumno.aptoFisicoPresentado || !alumno.aptoFisicoFecha) {
+    return { vigente: false, mensaje: 'No presentó apto físico todavía.' }
+  }
+  // Parseado con T00:00:00 (hora local), como el resto de las fechas de este
+  // archivo — un `new Date('2026-04-15')` sin hora se interpreta en UTC, y
+  // ya nos mordió antes con vencimientos corridos casi un día en Argentina.
+  const vencimiento = new Date(`${alumno.aptoFisicoFecha}T00:00:00`)
+  vencimiento.setDate(vencimiento.getDate() + plazoDias)
+  const vigente = vencimiento >= new Date()
+  const vencimientoISO = vencimiento.toISOString().split('T')[0]
+  return {
+    vigente,
+    mensaje: vigente
+      ? `Apto físico vigente hasta el ${formatFecha(vencimientoISO)}.`
+      : `Apto físico vencido desde el ${formatFecha(vencimientoISO)} — hay que renovarlo.`,
+  }
+}
+
+const DIA_SEMANA_INDICE = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
+
+export function ocurrenciasDeClaseEnMes(clases, anio, mes) {
+  const diasEnMes = new Date(anio, mes + 1, 0).getDate()
+  const ocurrencias = []
+  for (const clase of clases) {
+    for (const h of clase.horarios ?? []) {
+      for (let dia = 1; dia <= diasEnMes; dia++) {
+        const fecha = new Date(anio, mes, dia)
+        if (fecha.getDay() === DIA_SEMANA_INDICE[h.diaSemana]) {
+          ocurrencias.push({
+            tipo: 'clase', fecha: fecha.toISOString().split('T')[0],
+            titulo: clase.nombre, hora: h.horaInicio,
+          })
+        }
+      }
+    }
+  }
+  return ocurrencias
+}
+
+export function proximosItems(clases, eventos, anio, mes, cantidad = 8) {
+  // `hoyLocalISO()` en vez de `new Date().toISOString().split('T')[0]` como
+  // en el snippet original — mismo bug de UTC-vs-local que ya se corrigió
+  // en `esCargoVencido` y `estadoAptoFisico`: de noche en Argentina (UTC-3)
+  // "hoy" en UTC ya es mañana, y esto excluía el día de hoy de "Próximos"
+  // unas horas antes de tiempo.
+  const hoy = hoyLocalISO()
+  const clasesDelMes = ocurrenciasDeClaseEnMes(clases, anio, mes)
+  const eventosFormateados = eventos
+    .filter((e) => e.fecha.startsWith(`${anio}-${String(mes + 1).padStart(2, '0')}`))
+    .map((e) => ({ tipo: 'evento', fecha: e.fecha, titulo: e.titulo, hora: e.hora }))
+
+  return [...clasesDelMes, ...eventosFormateados]
+    .filter((item) => item.fecha >= hoy)
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
+    .slice(0, cantidad)
 }

@@ -8,6 +8,11 @@ import PortalShell from './components/layout/portal/PortalShell'
 import PortalHome from './pages/portal/Home'
 import PortalPagos from './pages/portal/Pagos'
 import PortalAsistencia from './pages/portal/Asistencia'
+import PortalClases from './pages/portal/Clases'
+import PortalHorarios from './pages/portal/Horarios'
+import PortalEvaluaciones from './pages/portal/Evaluaciones'
+import PortalPerfil from './pages/portal/Perfil'
+import PortalNotificaciones from './pages/portal/Notificaciones'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alumnos from './pages/Alumnos'
@@ -46,6 +51,11 @@ export default function App() {
           <Route index element={<PortalHome />} />
           <Route path="pagos" element={<PortalPagos />} />
           <Route path="asistencia" element={<PortalAsistencia />} />
+          <Route path="clases" element={<PortalClases />} />
+          <Route path="horarios" element={<PortalHorarios />} />
+          <Route path="evaluaciones" element={<PortalEvaluaciones />} />
+          <Route path="perfil" element={<PortalPerfil />} />
+          <Route path="notificaciones" element={<PortalNotificaciones />} />
         </Route>
         <Route path="/" element={appLayout}>
           <Route index element={<Navigate to="/dashboard" replace />} />
