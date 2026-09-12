@@ -15,8 +15,9 @@ const ICONOS_TIPO = {
   bell: Bell,
 }
 
-// 'evento' se queda sin CTA a propósito — el módulo de Eventos sigue
-// pausado (ver Claude.md), no hay página a la que mandar todavía.
+// 'evento' se queda sin CTA por ahora — el módulo de Eventos ya no está
+// pausado (existe /portal/eventos), pero conectar este CTA no entraba en
+// el alcance de esa tarea; queda como follow-up anotado en Claude.md.
 const CTA_POR_TIPO = {
   vencimiento: { label: 'Ver mis pagos', ruta: '/portal/pagos' },
   pago: { label: 'Ver mis pagos', ruta: '/portal/pagos' },
@@ -26,7 +27,8 @@ const CTA_POR_TIPO = {
 
 export default function Notificaciones() {
   const navigate = useNavigate()
-  const { notificaciones, cargando, marcarLeida, marcarTodasLeidas } = useOutletContext()
+  const { notificacionesApi } = useOutletContext()
+  const { notificaciones, cargando, marcarLeida, marcarTodasLeidas } = notificacionesApi
   const [seleccionada, setSeleccionada] = useState(null)
 
   if (cargando) return <Spinner className="mt-20" />

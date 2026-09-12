@@ -201,9 +201,61 @@ nuevo.
 - **Eventos se accede desde una tarjeta de Home, no desde el nav inferior.**
   El `BottomNav` tiene 5 slots fijos (Inicio/Pagos/Asistencia/Clases/Evaluaciones)
   y no hay lugar para un sexto ítem "Eventos". La tarjeta "Próx. evento"
-  (ancho completo, segunda fila del grid) es la puerta de entrada — hoy es
-  informativa nomás (no clickeable todavía, no hay página de Eventos), pero
-  el lugar ya está reservado para cuando exista.
+  (ancho completo, segunda fila del grid) es la puerta de entrada — desde
+  la Fase 17 navega a `/portal/eventos/:id` (antes era informativa nomás).
+
+## Propuesta de schema: módulo de Eventos (para mandar a la compañera)
+
+**Contexto:** el sistema de entradas con mapa de butacas había quedado
+pausado (ver más arriba, "Diseño") porque no hay tablas de
+asientos/entradas en el modelo que se venía usando. La Fase 17 lo
+retomó mockeado completo — antes de tocar el backend real, esto es lo que
+hay que validar con la compañera. Nada de esto está implementado en
+Postgres todavía, es la propuesta que sale de haber construido el mock.
+
+- **`evento_institucional`** (nueva tabla): `id`, `titulo`, `tipo` (enum:
+  `gala` / `otro` / lo que haga falta), `fecha`, `hora`, `lugar`,
+  `descripcion`, `fecha_limite_pago` (nullable — `null` = entrada libre,
+  sin plazo de pago), **`mapa_asientos`** (JSONB, nullable — `null` =
+  evento sin butacas/reserva, como la "Clase abierta a familias" del mock).
+  Se propone JSONB para `mapa_asientos` (forma: `{ sectores: [{ nombre,
+  filas, columnas, precio }] }`, igual que `eventosDemo` en
+  `mock/fixtures.js`) en vez de tablas normalizadas de sectores/asientos,
+  porque el mapa es fijo por evento y no se reutiliza entre eventos — no
+  parece justificar el modelado relacional todavía. A discutir si en algún
+  momento hace falta reportar ocupación agregada por sector con SQL, ahí sí
+  convendría normalizar.
+- **`cargo` gana dos columnas nuevas y nullable**: **`evento_institucional_id`**
+  (FK a `evento_institucional`, nullable) y **`fila`/`columna`** (nullable,
+  identifican la butaca reservada). La idea es reusar la misma tabla
+  `cargo` que ya existe para cuotas en vez de crear una tabla `entrada`
+  aparte — una entrada de evento es, para el sistema de cobros, un cargo
+  más (tiene monto, estado, método de pago). **Esto es justo lo que hay
+  que validar con la compañera**: si `cargo` ya tiene mucha lógica atada a
+  "cuota mensual" que no aplica acá, puede ser mejor una tabla `entrada`
+  separada con su propia relación a un `pago` compartido — la decisión de
+  cuál conviene depende de cómo esté armado `cargo` en el modelo real, que
+  todavía no vimos con este stack.
+- **`cargo.estado` suma el valor `'pago_en_revision'`** (nuevo, junto a los
+  que ya existen: pendiente/parcial/pagado). Representa "ya se generó el
+  pago vía Mercado Pago pero todavía no llegó/se confirmó el webhook" — es
+  el estado en el que queda toda entrada apenas se confirma la compra en
+  el mock (`confirmarCompra()` en `hooks/useMisEntradas.js` nunca crea una
+  entrada directo en `'pagado'`). El botón `[DEV] Simular confirmación de
+  secretaría` en `MisEntradas.jsx` (marcado como `// TEMPORAL`, a sacar
+  cuando exista el backend) es el stand-in manual de ese webhook.
+- **Índice único `(evento_institucional_id, fila, columna)`** sobre
+  `cargo` (o sobre `entrada`, si se termina optando por esa tabla aparte)
+  — es lo que evita vender la misma butaca dos veces con escrituras
+  concurrentes. El mock no lo necesita (todo vive en memoria, un solo
+  usuario), pero es no-negociable en el backend real: sin este índice, dos
+  personas confirmando la misma butaca casi al mismo tiempo generarían dos
+  cargos "válidos" para el mismo asiento.
+- **`butacasOcupadasDemo`** (mock) sería, en el modelo real, una consulta
+  derivada — `SELECT fila, columna FROM cargo WHERE evento_institucional_id
+  = ? AND estado != 'cancelado'` (o el estado que corresponda) — no una
+  tabla propia. Se mockeó como diccionario plano porque alcanzaba para
+  probar el flujo, no porque se proponga como tabla real.
 
 ## Estado de avance
 
@@ -464,8 +516,155 @@ nuevo.
   cuenta doble: clase y evento); `Clases.jsx` quedó liviana, sin rastro del
   calendario, con la tarjeta de acceso funcionando en los dos sentidos
   (Clases → Horarios y Home → Horarios); sin errores de consola.
-- ⏳ Pendiente: `SeleccionarAlumno.jsx`, guard de rol (`RequireRole`),
-  login real.
+- ✅ **Fase 14 — Calendario interactivo por día** (completada):
+  `utils/format.js` suma `itemsDelDia(clases, eventos, anio, mes, fechaISO)`.
+  `components/portal/CalendarioMensual.jsx` sigue controlado (mismo
+  criterio que el mes): recibe `diaSeleccionado`/`onSeleccionarDia` nuevos,
+  cada celda de día es ahora un `<button>` que llama `onSeleccionarDia`; el
+  padre decide deseleccionar (el componente nunca decide por su cuenta) —
+  el anillo de "hoy" y el fondo sólido de "seleccionado" son clases
+  independientes entre sí, así que un día que es hoy Y está seleccionado
+  muestra los dos a la vez (relleno + anillo), no uno tapando al otro.
+  `pages/portal/Horarios.jsx` suma `diaSeleccionado` (`useState`, resetea a
+  `null` en `cambiarMes`) y el toggle en `seleccionarDia`; debajo del
+  calendario, "Próximos" y "Clases del {día}" son mutuamente excluyentes
+  según haya o no día seleccionado. Se extrajo `FilaItem` (componente local
+  a esta página) porque las dos listas comparten la misma fila
+  ícono+título+subtítulo — la única diferencia es qué texto va de
+  subtítulo (fecha+hora en "Próximos", solo hora en el detalle del día,
+  porque el título de la sección ya dice qué día es). Verificado con
+  Playwright: tocar el lunes 14/09 (con clase) muestra "Danza Clásica ·
+  18:00"; tocar el martes 15/09 (sin clase) muestra "No tenés clases este
+  día."; tocar el mismo día de nuevo vuelve a "Próximos"; seleccionar un
+  día y cambiar de mes limpia la selección (vuelve a "Próximos" en el mes
+  nuevo); seleccionar el día de hoy muestra el relleno violeta y el anillo
+  a la vez, visualmente distinguible tanto de "hoy sin seleccionar" (solo
+  anillo) como de "otro día seleccionado" (solo relleno); sin errores de
+  consola.
+- ✅ **Fase 15 — Flecha de volver en páginas fuera del nav inferior**
+  (completada): `PortalHeader.jsx` suma `mostrarVolver` — si es `true`
+  renderiza una flecha (`ArrowLeft`, `navigate(-1)`) en el lugar del
+  avatar; la campanita no se toca. **Encontré el caso que el spec pedía
+  avisar antes de resolver:** `PortalHeader` se renderiza una sola vez en
+  `PortalShell.jsx` (layout compartido con `<Outlet/>`), no en cada
+  página — así que `Perfil.jsx`/`Notificaciones.jsx`/`Horarios.jsx` nunca
+  llaman a `<PortalHeader>` y no hay forma de pasarle la prop desde ahí.
+  Pregunté antes de elegir cómo resolverlo (había más de una forma
+  válida); se optó por la más simple: `PortalShell.jsx` usa
+  `useLocation()` y compara el pathname contra un array constante
+  (`RUTAS_CON_VOLVER`), sin cambiar el mecanismo de ruteo actual (se
+  descartó migrar a `createBrowserRouter` + `route.handle` por invasivo
+  para lo que hacía falta acá). Ninguna página individual necesitó
+  tocarse — ni las que quedan con avatar (Home/Pagos/Asistencia/Clases/
+  Evaluaciones, ya estaban bien) ni las tres que pasan a mostrar la
+  flecha (no la controlan, la decide el shell). Verificado con Playwright:
+  las 5 páginas del nav inferior siguen con avatar; Perfil, Notificaciones
+  y Horarios muestran la flecha; llegando a Horarios desde Home la flecha
+  vuelve a Home, llegando desde Clases vuelve a Clases (`navigate(-1)`
+  real, no un destino fijo); sin errores de consola.
+- ✅ **Fase 16 — Alertas de Home + fallback de compartir + skeletons**
+  (completada):
+  - **Alertas**: `utils/format.js` suma `calcularAlertas({cargos,
+    asistenciasDelMes, umbral})` (cuota vencida = alta, asistencia baja o
+    cuota a vencer en ≤3 días = media, máximo 2, altas primero). Se
+    corrigió un cuarto caso del bug de UTC-vs-local dentro de la misma
+    función — ver nota abajo. `components/portal/AlertaHome.jsx` (nuevo):
+    franja roja/ámbar según urgencia con `<Link>` de React Router (no
+    `<a>`, para no recargar la página). `Home.jsx` renderiza
+    `#alertas-home` arriba del saludo con el resultado de `calcularAlertas`.
+  - **Compartir**: `ComprobanteModal.jsx` ya tenía el fallback a
+    `navigator.clipboard`, pero sin toast de confirmación ni el último
+    escalón (ningún método disponible). Se completó la cadena de 3
+    pasos (`share` → `clipboard` + toast → toast de "no se pudo"),
+    usando `useToast()` de `context/ToastContext`.
+  - **Skeletons**: `components/ui/Skeleton.jsx` (nuevo, compartido — ver
+    nota abajo). Reemplaza el `Spinner` centrado en Home, Pagos,
+    Asistencia y Evaluaciones por bloques con la forma real de cada
+    pantalla (Clases y Horarios quedan con `Spinner`, no estaban en el
+    alcance de esta fase). `Home.jsx` no tenía ningún chequeo de
+    `cargando` antes de esta fase — se agregó (`cargandoAsistencias ||
+    cargandoCargos`) porque hacía falta para poder mostrar el skeleton.
+  - Verificado con Playwright, con un delay artificial de 700ms agregado
+    temporalmente en `useCargos`/`useAsistencias`/`useEvaluaciones` (sacado
+    después, confirmado con `git diff` vacío): las 4 skeletons se ven con
+    la forma pedida antes de que cargue el contenido real; con el mock tal
+    cual queda hoy, `calcularAlertas` ya muestra 2 alertas "alta" solas
+    (las cuotas de Septiembre y Junio-demo ya están vencidas para la fecha
+    actual del entorno) — **para ver la alerta media hubo que además
+    neutralizar esos 2 vencimientos temporalmente** (cambiarles la fecha a
+    futuro), porque "alta" siempre gana los 2 lugares del `slice(0, 2)`;
+    con eso hecho y la asistencia de septiembre bajada a 3/6, apareció
+    "Tu asistencia este mes está en 50%..." en ámbar con link a
+    Asistencia, navegando sin recargar (confirmado con `reloadCount: 0`);
+    todo revertido después, confirmado con `git diff` vacío. El fallback
+    de compartir se probó en Chromium desktop (`navigator.share` es
+    `undefined` ahí, como es de esperar): cae a `clipboard.writeText`,
+    dispara el toast, y el texto copiado es el correcto — el share nativo
+    en un celular real queda sin probar (ver Decisiones pendientes).
+- 💡 **Decisión pendiente:** confirmar `navigator.share()` en un
+  dispositivo móvil real — no se puede validar desde este entorno de
+  desarrollo/testing de escritorio.
+- ✅ **Fase 17 — Módulo de Eventos (mock completo)** (completada). **Nota
+  importante: esta fase reabre una pausa explícita** — el sistema de
+  entradas con mapa de butacas y QR venía marcado como pausado desde la
+  Fase 1 ("no hay tablas de asientos/entradas en el modelo... pausadas
+  hasta coordinar con la otra parte del equipo", ver "Diseño" arriba). Se
+  construyó igual, mockeado completo, porque la tarea lo pedía
+  explícitamente y porque documentar el schema propuesto para mandárselo a
+  la compañera (ver sección arriba) es en sí mismo el paso de
+  coordinación — no una continuación silenciosa de algo que se había
+  decidido no tocar.
+  - `mock/fixtures.js`: `eventosDemo` (2 eventos — uno con mapa de
+    butacas, uno de entrada libre sin mapa), `butacasOcupadasDemo`,
+    `misEntradasDemo`; `proximoEventoDemo` suma `id` para poder navegar
+    desde Home sin hardcodear el string en la página.
+  - `utils/format.js`: `generarAsientos(sector)`, `infoEstadoEntrada(estado)`.
+  - `hooks/useEventos.js` (lista), `hooks/useEvento.js` (uno + sus butacas
+    ocupadas), `hooks/useMisEntradas.js` (lista + `confirmarCompra` +
+    `marcarComoPagada`, esta última `// TEMPORAL`).
+  - **Mismo problema de estado compartido que ya apareció con
+    notificaciones (Fase 11), pero esta vez entre páginas que ni siquiera
+    están montadas al mismo tiempo:** `ResumenCompra.jsx` llama
+    `confirmarCompra` y navega a `MisEntradas.jsx` — si cada una tuviera su
+    propio `useMisEntradas()`, la entrada nueva viviría en el estado de un
+    componente que se desmonta al navegar, y `MisEntradas` arrancaría de
+    cero sin ella. Se resolvió con el mismo mecanismo que notificaciones:
+    `PortalShell.jsx` llama `useMisEntradas()` una sola vez y lo reparte
+    por `Outlet context`. Como ya había un valor ahí
+    (`notificacionesApi`), el context pasó de ser ese objeto plano a
+    `{ notificacionesApi, misEntradasApi }` — `Notificaciones.jsx` se
+    actualizó para desestructurar un nivel más.
+  - Rutas nuevas, todas hijas de `/portal`: `eventos` (cartelera),
+    `eventos/:id` (detalle), `eventos/:id/butacas` (mapa interactivo, solo
+    si `mapaAsientos` existe — si no, redirige de vuelta al detalle),
+    `eventos/:id/resumen` (recibe la selección de butacas por
+    `location.state`, no por prop ni contexto persistente — si se navega
+    ahí directo sin haber pasado por el mapa, muestra un `EmptyState` con
+    link para volver a elegir), `mis-entradas`. Las 3 rutas de `eventos/*`
+    y `mis-entradas` entraron a `RUTAS_CON_VOLVER`/`tieneVolver()` en
+    `PortalShell.jsx` — muestran flecha de volver, no el avatar.
+  - `components/portal/MapaButacas.jsx` (nuevo, específico del portal —
+    mismo criterio que `CalendarioMensual`): grilla por sector con
+    `generarAsientos()`, selección múltiple en estado local, footer
+    `sticky bottom-0` con cantidad + total. `pages/portal/EventoButacas.jsx`
+    es la página delgada que lo envuelve (busca el evento por `:id`, hace
+    de guard si no hay `mapaAsientos`) — el spec solo pedía el componente,
+    esta página no estaba nombrada explícitamente pero hacía falta para
+    que la ruta tuviera algo que renderizar.
+  - Conectado: tarjeta "Próx. evento" de Home → `/portal/eventos/:id`;
+    fila nueva "Mis entradas" en Perfil → `/portal/mis-entradas` (no
+    existía ninguna fila de entradas antes, se agregó).
+  - Verificado con Playwright, flujo completo end-to-end: Home → Gala →
+    "Elegir mis butacas" → seleccionar Platea D-6 y E-1 (libres) → footer
+    muestra "2 butacas / $10.000" → butaca ocupada (A-3) confirmada como
+    `disabled` → Continuar → Resumen muestra las 2 butacas y el total
+    correcto → Confirmar y pagar → aparece en Mis Entradas como "Pago en
+    proceso" (junto a la entrada `ent1` del mock, preexistente) → botón
+    `[DEV]` sobre `ent1` la pasa a "Entrada confirmada" con código
+    `ENT1` monoespaciado, sin afectar la otra entrada (todavía en
+    revisión); la Clase Abierta (`ev2`, sin `mapaAsientos`) no muestra
+    botón de compra, y navegar directo a `/portal/eventos/ev2/butacas`
+    redirige de vuelta al detalle; sin errores de consola.
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 
@@ -715,6 +914,27 @@ nuevo.
   y sin el fix eso excluía el día de hoy de "Próximos" unas horas antes de
   tiempo. Se prefirió exportar la función ya existente en vez de duplicar
   la lógica por tercera vez.
+- **`calcularAlertas()` — cuarta aparición del mismo bug de UTC-vs-local.**
+  El snippet del spec calculaba `en3DiasISO` con
+  `en3Dias.toISOString().split('T')[0]`; se cambió a armar el string desde
+  `getFullYear()/getMonth()/getDate()` directo (sin pasar por UTC en
+  ningún momento, ni siquiera con el truco de offset de `hoyLocalISO()`).
+  Motivó agregar la sección "Convenciones de código" un par de fases
+  atrás — esta es la cuarta vez, no la primera, así que vale la pena
+  revisar cualquier función nueva que toque fechas contra esa regla antes
+  de darla por buena.
+- **`Skeleton` quedó en `components/ui/`, compartido — no específico del
+  portal.** Mismo criterio que `Avatar`/`RadialProgress`: es una pieza de
+  UI genérica (un bloque `animate-pulse`), no algo propio del portal. Si
+  el sistema de administración quiere reemplazar sus `Spinner` centrados
+  por skeletons con la forma de cada pantalla, esta pieza les sirve tal
+  cual.
+- **Follow-up sin hacer:** la notificación tipo `'evento'` en
+  `Notificaciones.jsx` sigue sin CTA (`CTA_POR_TIPO` no tiene entrada para
+  `evento`), aunque desde la Fase 17 ya existe `/portal/eventos/:id` para
+  mandarla ahí. No se tocó porque no entraba en el alcance de esa tarea —
+  el comentario en el código se actualizó para no decir "pausado" (ya no
+  lo está), pero conectar el CTA queda pendiente.
 
 ## Flujo de trabajo
 

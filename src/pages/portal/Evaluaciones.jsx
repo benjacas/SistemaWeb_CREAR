@@ -1,6 +1,6 @@
 import { useContext } from 'react'
 import Badge from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Skeleton from '../../components/ui/Skeleton'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useEvaluaciones } from '../../hooks/useEvaluaciones'
 import { formatFecha, promedioExamen, promedioGeneral } from '../../utils/format'
@@ -18,7 +18,22 @@ export default function Evaluaciones() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
   const { evaluaciones, cargando } = useEvaluaciones(alumnoActivo?.id)
 
-  if (cargando) return <Spinner className="mt-20" />
+  if (cargando) {
+    return (
+      <div className="p-4 space-y-4">
+        {[0, 1].map((i) => (
+          <div key={i} className="border border-gray-100 rounded-xl p-3 space-y-3">
+            <Skeleton className="h-4 w-1/2" />
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   // Solo Profesorado — las recreativas no tienen evaluación formal (ver footer).
   // El filtro va siempre, aunque hoy el mock no tenga ningún examen recreativo.

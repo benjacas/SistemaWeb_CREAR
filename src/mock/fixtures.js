@@ -77,7 +77,7 @@ export const notificacionesDemo = [
 ]
 
 export const proximoEventoDemo = {
-  titulo: 'Gala Anual CREAR', fecha: '2026-09-30', diasRestantes: 13,
+  id: 'ev1', titulo: 'Gala Anual CREAR', fecha: '2026-09-30', diasRestantes: 13,
 }
 
 export const horariosResumenDemo = { cantidadPorSemana: 3 }
@@ -140,5 +140,44 @@ export const evaluacionesDemo = [
       { criterioNombre: 'Ritmo', nota: 8, observaciones: null },
       { criterioNombre: 'Técnica', nota: 8, observaciones: null },
     ],
+  },
+]
+
+// Módulo de Eventos (mock completo) — retoma el flujo de entradas con mapa
+// de butacas que había quedado pausado por falta de modelo de datos (ver
+// Claude.md). Se construye mockeado primero, documentando acá el schema
+// propuesto, para coordinar con la compañera antes de tocar el backend.
+export const eventosDemo = [
+  {
+    id: 'ev1', titulo: 'Gala Anual CREAR', tipo: 'gala',
+    fecha: '2026-09-30', hora: '20:00', lugar: 'Auditorio Municipal',
+    descripcion: 'Nuestra muestra de fin de año con la participación de todas las comisiones. Sofía baila en la Tanda 3 (Cierre).',
+    fechaLimitePago: '2026-09-25',
+    mapaAsientos: {
+      sectores: [
+        { nombre: 'Palco', filas: ['A', 'B'], columnas: 10, precio: 6000 },
+        { nombre: 'Platea', filas: ['C', 'D', 'E', 'F', 'G'], columnas: 10, precio: 5000 },
+      ],
+    },
+  },
+  {
+    id: 'ev2', titulo: 'Clase abierta a familias', tipo: 'otro',
+    fecha: '2026-10-15', hora: '18:00', lugar: 'Sede CREAR',
+    descripcion: 'Vení a ver una clase de Danza Clásica en vivo. Entrada libre y gratuita.',
+    fechaLimitePago: null,
+    mapaAsientos: null,
+  },
+]
+
+export const butacasOcupadasDemo = {
+  ev1: ['A-3', 'B-7', 'C-2', 'C-3', 'D-5', 'E-8', 'E-9', 'F-1'],
+}
+
+export const misEntradasDemo = [
+  {
+    id: 'ent1', eventoId: 'ev1', eventoTitulo: 'Gala Anual CREAR',
+    fecha: '2026-09-30', lugar: 'Auditorio Municipal',
+    butacas: [{ sector: 'Platea', fila: 'D', columna: 6 }],
+    estado: 'pago_en_revision', montoTotal: 5000,
   },
 ]

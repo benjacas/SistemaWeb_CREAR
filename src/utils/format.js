@@ -215,3 +215,78 @@ export function proximosItems(clases, eventos, anio, mes, cantidad = 8) {
     .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
     .slice(0, cantidad)
 }
+
+export function calcularAlertas({ cargos, asistenciasDelMes, umbral }) {
+  const alertas = []
+
+  for (const cargo of cargos) {
+    if (esCargoVencido(cargo)) {
+      alertas.push({
+        id: `venc-${cargo.id}`, urgencia: 'alta',
+        mensaje: `Tenés una cuota vencida: ${cargo.concepto}.`,
+        ctaLabel: 'Ver pagos', ctaRuta: '/portal/pagos',
+      })
+    }
+  }
+
+  const porcentaje = calcularPorcentajeAsistencia(asistenciasDelMes)
+  if (porcentaje < umbral) {
+    alertas.push({
+      id: 'asistencia-baja', urgencia: 'media',
+      mensaje: `Tu asistencia este mes está en ${porcentaje}%, por debajo del mínimo de ${umbral}%.`,
+      ctaLabel: 'Ver asistencia', ctaRuta: '/portal/asistencia',
+    })
+  }
+
+  // Cuarta vez que aparece este bug (ver "Convenciones de código" en
+  // Claude.md) — el snippet original usaba en3Dias.toISOString(), que es
+  // UTC: de noche en Argentina eso corre la fecha un día, ampliando la
+  // ventana de "vence en 3 días" a un cargo que en realidad vence en 4.
+  // Se arma el string directo desde los campos locales, sin pasar por UTC.
+  const hoy = hoyLocalISO()
+  const en3Dias = new Date()
+  en3Dias.setDate(en3Dias.getDate() + 3)
+  const en3DiasISO = `${en3Dias.getFullYear()}-${String(en3Dias.getMonth() + 1).padStart(2, '0')}-${String(en3Dias.getDate()).padStart(2, '0')}`
+  for (const cargo of cargos) {
+    if (cargo.estado === 'pendiente' && cargo.fecha_vencimiento >= hoy && cargo.fecha_vencimiento <= en3DiasISO) {
+      alertas.push({
+        id: `prox-${cargo.id}`, urgencia: 'media',
+        mensaje: `${cargo.concepto} vence el ${formatFecha(cargo.fecha_vencimiento)}.`,
+        ctaLabel: 'Ver pagos', ctaRuta: '/portal/pagos',
+      })
+    }
+  }
+
+  return alertas
+    .sort((a, b) => (a.urgencia === 'alta' ? -1 : 1) - (b.urgencia === 'alta' ? -1 : 1))
+    .slice(0, 2)
+}
+
+export function itemsDelDia(clases, eventos, anio, mes, fechaISO) {
+  const ocurrenciasDelMes = ocurrenciasDeClaseEnMes(clases, anio, mes)
+  const clasesDelDia = ocurrenciasDelMes.filter((o) => o.fecha === fechaISO)
+  const eventosDelDia = eventos
+    .filter((e) => e.fecha === fechaISO)
+    .map((e) => ({ tipo: 'evento', fecha: e.fecha, titulo: e.titulo, hora: e.hora }))
+
+  return [...clasesDelDia, ...eventosDelDia].sort((a, b) => a.hora.localeCompare(b.hora))
+}
+
+export function generarAsientos(sector) {
+  const asientos = []
+  for (const fila of sector.filas) {
+    for (let col = 1; col <= sector.columnas; col++) {
+      asientos.push({ fila, columna: col, clave: `${fila}-${col}`, sector: sector.nombre, precio: sector.precio })
+    }
+  }
+  return asientos
+}
+
+export function infoEstadoEntrada(estado) {
+  const map = {
+    pendiente: { label: 'Pendiente de pago', classes: 'bg-gray-100 text-gray-600' },
+    pago_en_revision: { label: 'Pago en proceso', classes: 'bg-amber-50 text-amber-700' },
+    pagado: { label: 'Entrada confirmada', classes: 'bg-emerald-50 text-emerald-700' },
+  }
+  return map[estado] ?? map.pendiente
+}

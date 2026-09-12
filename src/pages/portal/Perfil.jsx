@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Phone, KeyRound, Bell, CreditCard, HelpCircle, ChevronRight, LogOut } from 'lucide-react'
+import { Check, Phone, KeyRound, Bell, CreditCard, HelpCircle, ChevronRight, LogOut, Ticket } from 'lucide-react'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import ConfirmModal from '../../components/ui/ConfirmModal'
@@ -88,6 +88,17 @@ export default function Perfil() {
             <div className="flex items-center gap-3 min-w-0">
               <Phone size={18} className="text-gray-400 shrink-0" />
               <p className="text-sm text-gray-700 truncate">Editar datos de contacto</p>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 shrink-0" />
+          </li>
+
+          <li
+            onClick={() => navigate('/portal/mis-entradas')}
+            className="flex items-center justify-between gap-2 p-3 cursor-pointer hover:bg-primary-subtle rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <Ticket size={18} className="text-gray-400 shrink-0" />
+              <p className="text-sm text-gray-700 truncate">Mis entradas</p>
             </div>
             <ChevronRight size={16} className="text-gray-300 shrink-0" />
           </li>

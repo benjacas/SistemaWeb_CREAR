@@ -2,6 +2,8 @@ import { useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, Clock, PartyPopper } from 'lucide-react'
 import RadialProgress from '../../components/ui/RadialProgress'
+import Skeleton from '../../components/ui/Skeleton'
+import AlertaHome from '../../components/portal/AlertaHome'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useAsistencias } from '../../hooks/useAsistencias'
 import { useCargos } from '../../hooks/useCargos'
@@ -12,7 +14,7 @@ import {
   grupoAsistenciaDemo,
   umbralAsistenciaDemo,
 } from '../../mock/fixtures'
-import { agruparAsistenciasPorMes, calcularPorcentajeAsistencia, formatMesLabel } from '../../utils/format'
+import { agruparAsistenciasPorMes, calcularAlertas, calcularPorcentajeAsistencia, formatMesLabel } from '../../utils/format'
 
 function InfoCard({ icon: Icon, label, value, onClick, className = '' }) {
   const clickable = typeof onClick === 'function'
@@ -37,8 +39,23 @@ function InfoCard({ icon: Icon, label, value, onClick, className = '' }) {
 export default function Home() {
   const navigate = useNavigate()
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { asistencias } = useAsistencias(alumnoActivo?.id)
-  const { cargos } = useCargos(alumnoActivo?.id)
+  const { asistencias, cargando: cargandoAsistencias } = useAsistencias(alumnoActivo?.id)
+  const { cargos, cargando: cargandoCargos } = useCargos(alumnoActivo?.id)
+  const cargando = cargandoAsistencias || cargandoCargos
+
+  if (cargando) {
+    return (
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-24 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl col-span-2" />
+        </div>
+      </div>
+    )
+  }
 
   // Home muestra el mes más reciente — mismo criterio que la selección por
   // defecto de la página de Asistencia, para que el % nunca se desincronice.
@@ -49,9 +66,18 @@ export default function Home() {
 
   const porcentajeAsistencia = calcularPorcentajeAsistencia(asistenciasMesActual)
   const cuotasPendientes = cargos.filter((c) => c.estado !== 'pagado').length
+  const alertas = calcularAlertas({ cargos, asistenciasDelMes: asistenciasMesActual, umbral: umbralAsistenciaDemo })
 
   return (
     <div className="p-4 space-y-4">
+      {alertas.length > 0 && (
+        <div id="alertas-home" className="space-y-2">
+          {alertas.map((alerta) => (
+            <AlertaHome key={alerta.id} alerta={alerta} />
+          ))}
+        </div>
+      )}
+
       {/* Saludo */}
       <div className="rounded-2xl p-5 text-white bg-gradient-to-br from-primary to-primary-dark shadow-card-md">
         <p className="text-sm text-white/80">Hola,</p>
@@ -89,6 +115,7 @@ export default function Home() {
           label={proximoEventoDemo.titulo}
           value={`${proximoEventoDemo.diasRestantes} días`}
           className="col-span-2"
+          onClick={() => navigate(`/portal/eventos/${proximoEventoDemo.id}`)}
         />
       </div>
     </div>

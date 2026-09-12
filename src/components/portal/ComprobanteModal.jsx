@@ -1,6 +1,7 @@
 import { CheckCircle2, Banknote, Landmark, CreditCard, Share2 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
+import { useToast } from '../../context/ToastContext'
 import { formatMoneda, formatFecha, infoMetodoPago } from '../../utils/format'
 
 const ICONOS_METODO = { banknote: Banknote, landmark: Landmark, 'credit-card': CreditCard }
@@ -11,7 +12,11 @@ export function IconoMetodoPago({ metodo, size = 14, className = '' }) {
   return <Icon size={size} className={className} />
 }
 
-async function compartirComprobante(cargo) {
+// navigator.share() no existe en la mayoría de los navegadores de escritorio
+// — sin un celular real a mano para probarlo, esto se hace a prueba de que
+// no exista en vez de asumir que sí. Pendiente confirmar el share nativo en
+// un dispositivo móvil real (ver Claude.md, Decisiones pendientes).
+async function compartirComprobante(cargo, toast) {
   const texto = `Comprobante ${cargo.comprobante} — ${cargo.concepto} — ${formatMoneda(cargo.monto_final)}`
   if (navigator.share) {
     try {
@@ -23,10 +28,14 @@ async function compartirComprobante(cargo) {
   }
   if (navigator.clipboard) {
     await navigator.clipboard.writeText(texto)
+    toast('Comprobante copiado al portapapeles')
+    return
   }
+  toast('No se pudo compartir desde este navegador')
 }
 
 export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
+  const toast = useToast()
   if (!cargo) return null
   const { label: metodoLabel } = infoMetodoPago(cargo.metodo)
   const nombreAlumno = alumno ? `${alumno.nombre} ${alumno.apellido}` : '—'
@@ -68,7 +77,7 @@ export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
         <span className="text-xl font-bold text-gray-800">{formatMoneda(cargo.monto_final)}</span>
       </div>
 
-      <Button variant="primary" className="w-full justify-center mt-5" onClick={() => compartirComprobante(cargo)}>
+      <Button variant="primary" className="w-full justify-center mt-5" onClick={() => compartirComprobante(cargo, toast)}>
         <Share2 size={16} />
         Compartir
       </Button>

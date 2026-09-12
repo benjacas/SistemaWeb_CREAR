@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import Badge from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Skeleton from '../../components/ui/Skeleton'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useAsistencias } from '../../hooks/useAsistencias'
 import { grupoAsistenciaDemo, umbralAsistenciaDemo } from '../../mock/fixtures'
@@ -17,7 +17,20 @@ export default function Asistencia() {
   const { asistencias, cargando } = useAsistencias(alumnoActivo?.id)
   const [mesSeleccionado, setMesSeleccionado] = useState(null)
 
-  if (cargando) return <Spinner className="mt-20" />
+  if (cargando) {
+    return (
+      <div className="p-4 space-y-4">
+        <Skeleton className="h-32 rounded-2xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-10 rounded-xl" />
+          <Skeleton className="h-10 rounded-xl" />
+          <Skeleton className="h-10 rounded-xl" />
+          <Skeleton className="h-10 rounded-xl" />
+          <Skeleton className="h-10 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   const porMes = agruparAsistenciasPorMes(asistencias)
   const meses = Object.keys(porMes).sort() // ascendente: más antiguo primero

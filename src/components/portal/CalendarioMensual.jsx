@@ -6,7 +6,9 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-export default function CalendarioMensual({ anio, mes, ocurrencias, onMesAnterior, onMesSiguiente }) {
+export default function CalendarioMensual({
+  anio, mes, ocurrencias, diaSeleccionado, onSeleccionarDia, onMesAnterior, onMesSiguiente,
+}) {
   const hoy = new Date()
   const primerDiaSemana = (new Date(anio, mes, 1).getDay() + 6) % 7 // 0 = lunes
   const diasEnMes = new Date(anio, mes + 1, 0).getDate()
@@ -56,21 +58,30 @@ export default function CalendarioMensual({ anio, mes, ocurrencias, onMesAnterio
           const tieneClase = items.some((it) => it.tipo === 'clase')
           const tieneEvento = items.some((it) => it.tipo === 'evento')
           const esHoy = hoy.getFullYear() === anio && hoy.getMonth() === mes && hoy.getDate() === dia
+          const seleccionado = fechaStr === diaSeleccionado
 
           return (
-            <div key={dia} className="flex flex-col items-center gap-0.5 py-1">
+            <button
+              type="button"
+              key={dia}
+              onClick={() => onSeleccionarDia(fechaStr)}
+              className="flex flex-col items-center gap-0.5 py-1"
+            >
+              {/* El anillo de "hoy" y el fondo de "seleccionado" son
+                  independientes entre sí — si tocás el día de hoy, tienen
+                  que poder verse los dos estados a la vez. */}
               <span
-                className={`w-7 h-7 flex items-center justify-center rounded-full text-xs ${
-                  esHoy ? 'ring-2 ring-primary text-primary font-semibold' : 'text-gray-700'
-                }`}
+                className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  seleccionado ? 'bg-primary text-white' : esHoy ? 'text-primary' : 'text-gray-700 hover:bg-gray-100'
+                } ${esHoy ? 'ring-2 ring-primary ring-offset-1' : ''}`}
               >
                 {dia}
               </span>
               <span className="flex gap-0.5 h-1.5">
-                {tieneClase && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
-                {tieneEvento && <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />}
+                {tieneClase && <span className={`w-1.5 h-1.5 rounded-full ${seleccionado ? 'bg-white' : 'bg-primary'}`} />}
+                {tieneEvento && <span className={`w-1.5 h-1.5 rounded-full ${seleccionado ? 'bg-white' : 'bg-pink-500'}`} />}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>

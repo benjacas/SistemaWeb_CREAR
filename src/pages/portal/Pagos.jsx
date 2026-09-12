@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react'
 import { Wallet, CalendarCheck2, CheckCircle2 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Skeleton from '../../components/ui/Skeleton'
 import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
 import ComprobanteModal, { IconoMetodoPago } from '../../components/portal/ComprobanteModal'
@@ -26,7 +26,15 @@ export default function Pagos() {
   const { cargos, cargando } = useCargos(alumnoActivo?.id)
   const [cargoComprobante, setCargoComprobante] = useState(null)
 
-  if (cargando) return <Spinner className="mt-20" />
+  if (cargando) {
+    return (
+      <div className="p-4 space-y-3">
+        <Skeleton className="h-14 rounded-xl" />
+        <Skeleton className="h-14 rounded-xl" />
+        <Skeleton className="h-14 rounded-xl" />
+      </div>
+    )
+  }
 
   const pendienteTotal = cargos
     .filter((c) => c.estado === 'pendiente' || c.estado === 'parcial')
