@@ -685,9 +685,11 @@ validar con la compañera antes de tocar Postgres.
     de guard si no hay `mapaAsientos`) — el spec solo pedía el componente,
     esta página no estaba nombrada explícitamente pero hacía falta para
     que la ruta tuviera algo que renderizar.
-  - Conectado: tarjeta "Próx. evento" de Home → `/portal/eventos/:id`;
-    fila nueva "Mis entradas" en Perfil → `/portal/mis-entradas` (no
-    existía ninguna fila de entradas antes, se agregó).
+  - Conectado: tarjeta "Próx. evento" de Home → `/portal/eventos/:id`
+    (cambiado en la Fase 21 a `/portal/eventos`, la cartelera general —
+    ver "Estado de avance"); fila nueva "Mis entradas" en Perfil →
+    `/portal/mis-entradas` (no existía ninguna fila de entradas antes, se
+    agregó).
   - Verificado con Playwright, flujo completo end-to-end: Home → Gala →
     "Elegir mis butacas" → seleccionar Platea D-6 y E-1 (libres) → footer
     muestra "2 butacas / $10.000" → butaca ocupada (A-3) confirmada como
@@ -764,7 +766,24 @@ validar con la compañera antes de tocar Postgres.
   (vestuario, rename de `infoEstadoPago`, este mismo re-chequeo) para que
   deje de repetirse esta discrepancia — queda a criterio de la próxima
   conversación de planificación, no se commiteó acá sin que se pida
-  explícitamente.
+  explícitamente. **Resuelto poco después:** se pidió explícitamente
+  commitear, separado en 3 commits en vez de uno solo mezclando fases
+  (`feat(vestuario)`, `fix(eventos)` con el rename, `docs`) — cada uno
+  buildable de forma aislada (el commit de vestuario usa todavía
+  `infoEstadoEntrada`, que en ese punto de la historia es lo que existe en
+  `format.js`; el rename es el commit siguiente). Ya están pusheados a
+  `origin/main`.
+- ✅ **Fase 21 — Tarjeta "Próx. evento" de Home → cartelera general**
+  (completada). `Home.jsx`: el `onClick` de la tarjeta pasa de
+  `navigate(`/portal/eventos/${proximoEventoDemo.id}`)` (ir directo a la
+  Gala) a `navigate('/portal/eventos')` (la cartelera completa, que ya
+  lista todos los eventos incluida la Gala). Sin cambios en
+  `fixtures.js` ni en ningún otro archivo — `proximoEventoDemo.id` queda
+  sin uso en el código (se agregó en la Fase 17 específicamente para esta
+  navegación directa que ahora se saca), pero no se tocó el mock porque no
+  estaba pedido y no rompe nada dejarlo. Verificado con Playwright: tocar
+  la tarjeta desde Home navega a `/portal/eventos` (título "Eventos", la
+  cartelera), no a `/portal/eventos/ev1`; sin errores de consola.
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 

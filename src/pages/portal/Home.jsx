@@ -115,7 +115,7 @@ export default function Home() {
           label={proximoEventoDemo.titulo}
           value={`${proximoEventoDemo.diasRestantes} días`}
           className="col-span-2"
-          onClick={() => navigate(`/portal/eventos/${proximoEventoDemo.id}`)}
+          onClick={() => navigate('/portal/eventos')}
         />
       </div>
     </div>
