@@ -154,9 +154,20 @@ export const eventosDemo = [
     descripcion: 'Nuestra muestra de fin de año con la participación de todas las comisiones. Sofía baila en la Tanda 3 (Cierre).',
     fechaLimitePago: '2026-09-25',
     mapaAsientos: {
-      sectores: [
-        { nombre: 'Palco', filas: ['A', 'B'], columnas: 10, precio: 6000 },
-        { nombre: 'Platea', filas: ['C', 'D', 'E', 'F', 'G'], columnas: 10, precio: 5000 },
+      precio: 5000, // precio único para todo el auditorio
+      sillasRuedas: { cupo: 2 },
+      filas: [
+        { fila: 'A', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'B', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'C', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'D', bloques: [[18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'E', bloques: [[18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'F', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
+        { fila: 'G', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17]] },
+        { fila: 'H', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17]] },
+        { fila: 'I', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17]] },
+        { fila: 'J', bloques: [[18, 16], [], [], [15, 17]] },
+        { fila: 'K', corrida: [18, 16, 14, 12, 10, 8, 6, 4, 2] },
       ],
     },
   },

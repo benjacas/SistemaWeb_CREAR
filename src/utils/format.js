@@ -272,14 +272,30 @@ export function itemsDelDia(clases, eventos, anio, mes, fechaISO) {
   return [...clasesDelDia, ...eventosDelDia].sort((a, b) => a.hora.localeCompare(b.hora))
 }
 
-export function generarAsientos(sector) {
-  const asientos = []
-  for (const fila of sector.filas) {
-    for (let col = 1; col <= sector.columnas; col++) {
-      asientos.push({ fila, columna: col, clave: `${fila}-${col}`, sector: sector.nombre, precio: sector.precio })
+export function generarAsientos(mapaAsientos) {
+  const { precio } = mapaAsientos
+
+  const asiento = (fila, numero) => ({
+    fila,
+    numero,
+    clave: `${fila}-${numero}`,
+    precio,
+  })
+
+  return mapaAsientos.filas.map((filaData) => {
+    if (filaData.corrida) {
+      return {
+        fila: filaData.fila,
+        corrida: filaData.corrida.map((numero) => asiento(filaData.fila, numero)),
+      }
     }
-  }
-  return asientos
+    return {
+      fila: filaData.fila,
+      bloques: filaData.bloques.map((bloque) =>
+        bloque.map((numero) => asiento(filaData.fila, numero))
+      ),
+    }
+  })
 }
 
 export function infoEstadoEntrada(estado) {
