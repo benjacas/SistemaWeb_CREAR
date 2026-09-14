@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button'
 import Spinner from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
 import { useVestuarioEvento } from '../../hooks/useVestuarioEvento'
-import { formatMoneda, infoEstadoEntrada } from '../../utils/format'
+import { formatMoneda, infoEstadoPago } from '../../utils/format'
 
 const COLOR_POR_ESTADO = { pendiente: 'gray', pago_en_revision: 'yellow', pagado: 'green' }
 
@@ -28,7 +28,7 @@ export default function VestuarioEvento() {
       ) : (
         <ul className="space-y-3">
           {items.map((item) => {
-            const { label } = infoEstadoEntrada(item.estado)
+            const { label } = infoEstadoPago(item.estado)
             const pagoDeshabilitado = item.estado !== 'pendiente'
             return (
               <li key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 space-y-2">

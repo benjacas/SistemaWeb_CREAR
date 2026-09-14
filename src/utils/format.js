@@ -298,11 +298,11 @@ export function generarAsientos(mapaAsientos) {
   })
 }
 
-export function infoEstadoEntrada(estado) {
+export function infoEstadoPago(estado) {
   const map = {
     pendiente: { label: 'Pendiente de pago', classes: 'bg-gray-100 text-gray-600' },
     pago_en_revision: { label: 'Pago en proceso', classes: 'bg-amber-50 text-amber-700' },
-    pagado: { label: 'Entrada confirmada', classes: 'bg-emerald-50 text-emerald-700' },
+    pagado: { label: 'Pago confirmado', classes: 'bg-emerald-50 text-emerald-700' },
   }
   return map[estado] ?? map.pendiente
 }

@@ -193,8 +193,8 @@ export const misEntradasDemo = [
   },
 ]
 
-// Vestuario por evento — mismos 3 estados que una entrada
-// (pendiente/pago_en_revision/pagado), ver infoEstadoEntrada() en format.js.
+// Vestuario por evento — mismos 3 estados que un pago cualquiera
+// (pendiente/pago_en_revision/pagado), ver infoEstadoPago() en format.js.
 // Solo `ev1` tiene ítems cargados; `ev2` (entrada libre) no tiene vestuario.
 export const vestuarioPorEventoDemo = {
   ev1: [

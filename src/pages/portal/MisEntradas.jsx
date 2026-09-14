@@ -4,7 +4,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
-import { formatFecha, formatMoneda, infoEstadoEntrada } from '../../utils/format'
+import { formatFecha, formatMoneda, infoEstadoPago } from '../../utils/format'
 
 const COLOR_POR_ESTADO = { pendiente: 'gray', pago_en_revision: 'yellow', pagado: 'green' }
 
@@ -30,7 +30,7 @@ export default function MisEntradas() {
       ) : (
         <ul className="space-y-3">
           {entradas.map((entrada) => {
-            const { label } = infoEstadoEntrada(entrada.estado)
+            const { label } = infoEstadoPago(entrada.estado)
             return (
               <li key={entrada.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
