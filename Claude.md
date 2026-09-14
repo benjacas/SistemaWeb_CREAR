@@ -257,6 +257,40 @@ Postgres todavía, es la propuesta que sale de haber construido el mock.
   tabla propia. Se mockeó como diccionario plano porque alcanzaba para
   probar el flujo, no porque se proponga como tabla real.
 
+### Propuesta agregada en la Fase 18: vestuario por evento
+
+Mismo criterio que las butacas — mockeado primero, esto es lo que hay que
+validar con la compañera antes de tocar Postgres.
+
+- **`vestuario_evento`** (nueva tabla): `id`, `evento_institucional_id` (FK,
+  NOT NULL — a diferencia de butacas, un ítem de vestuario siempre
+  pertenece a un evento puntual, no tiene sentido "vestuario sin evento"),
+  `nombre`, `descripcion`, `precio`. No lleva `alumno_id` acá — quién debe
+  cada ítem se resuelve igual que con butacas, del lado de `cargo` (ver
+  abajo), no duplicando el vínculo en esta tabla.
+- **`cargo` suma una columna nullable más**: **`vestuario_evento_id`** (FK a
+  `vestuario_evento`, nullable) — mismo patrón que
+  `evento_institucional_id`/`fila`/`columna` que ya se propuso para
+  butacas: un ítem de vestuario pagado es, para el sistema de cobros, un
+  cargo más. **Mismo punto a validar con la compañera** que con butacas: si
+  conviene reusar `cargo` así de sobrecargado (cuota + entrada + vestuario)
+  o separar en tablas propias con un `pago` compartido.
+- **No hace falta un índice único acá** (a diferencia de
+  `(evento_institucional_id, fila, columna)` en butacas) — un ítem de
+  vestuario no es un recurso exclusivo/escaso como una butaca numerada, no
+  hay condición de carrera que evitar: dos alumnos pueden comprar la misma
+  "Malla Gala Anual" sin conflicto, cada compra es un `cargo` propio.
+- `vestuarioPorEventoDemo` (mock, diccionario `eventoId → item[]`) es,
+  igual que `butacasOcupadasDemo`, un stand-in de lo que en el modelo real
+  sería `SELECT * FROM vestuario_evento WHERE evento_institucional_id = ?`
+  — no se propone como tabla real.
+- Reutiliza `infoEstadoPago()` (no se creó una función nueva) porque
+  los 3 estados posibles son exactamente los mismos que un pago cualquiera
+  (`pendiente` / `pago_en_revision` / `pagado`). Se llamaba
+  `infoEstadoEntrada()` hasta la Fase 19, con el label de `'pagado'` en
+  "Entrada confirmada" — quedaba raro para una malla o unas zapatillas, se
+  renombró y generalizó el texto (ver "Estado de avance").
+
 ## Estado de avance
 
 - ✅ **Fase 1 — Estructura del portal + Home mockeado** (completada): paleta
@@ -665,6 +699,72 @@ Postgres todavía, es la propuesta que sale de haber construido el mock.
     revisión); la Clase Abierta (`ev2`, sin `mapaAsientos`) no muestra
     botón de compra, y navegar directo a `/portal/eventos/ev2/butacas`
     redirige de vuelta al detalle; sin errores de consola.
+- ✅ **Fase 18 — Módulo Vestuario + acceso a Mis Entradas desde Eventos**
+  (completada). `vestuarioPorEventoDemo` (mock, diccionario `eventoId →
+  item[]`) solo tiene ítems cargados para `ev1` (la Gala) — `ev2` (entrada
+  libre) no tiene vestuario, mismo criterio que "sin `mapaAsientos` no se
+  muestra el botón de butacas". `hooks/useVestuarioEvento.js` (nuevo,
+  mismo patrón que `useMisEntradas`, pero sin necesidad de vivir en
+  `PortalShell` — a diferencia de entradas/notificaciones, nada más lee
+  este estado en simultáneo, así que se llama directo en
+  `VestuarioEvento.jsx`) expone `items` + `pagarVestuario(itemId)` (pasa a
+  `'pago_en_revision'`, simula la pasarela) + `marcarComoPagado(itemId)`
+  (`// TEMPORAL`, mismo stand-in manual del webhook que ya existía en
+  `useMisEntradas`). `pages/portal/VestuarioEvento.jsx` (nueva, ruta
+  `eventos/:id/vestuario`) reusa `infoEstadoEntrada()` tal cual pedía el
+  spec — ver nota abajo sobre el único costo de esa reutilización.
+  `EventoDetalle.jsx` suma el botón "Vestuario" (secundario, debajo de
+  "Elegir mis butacas"/el texto de entrada libre), condicionado a que
+  `vestuarioPorEventoDemo[evento.id]` tenga al menos un ítem.
+  `pages/portal/Eventos.jsx` suma un link "Mis entradas" (píldora con
+  ícono `Ticket`) arriba de la lista de eventos, para llegar a
+  `/portal/mis-entradas` sin pasar por Perfil. No hizo falta tocar
+  `PortalShell.jsx`: `tieneVolver()` ya cubre `eventos/:id/vestuario` con
+  el `pathname.startsWith('/portal/eventos')` que se agregó en la Fase 17.
+  Verificado con Playwright en esta máquina Windows (primera vez con
+  Playwright/Chromium instalados acá — ver nota abajo): desde la cartelera
+  de Eventos, "Mis entradas" navega directo a `/portal/mis-entradas`;
+  desde la Gala, "Vestuario" muestra los 2 ítems del mock; pagar la Malla
+  la deja en "Pago en proceso" con el botón `[DEV]` visible al lado;
+  tocar `[DEV]` la confirma sin afectar las Zapatillas (siguen
+  "Pendiente de pago"); la Clase Abierta a Familias (`ev2`) no muestra el
+  botón "Vestuario" (no tiene ítems cargados); sin errores de consola.
+- ✅ **Fase 19 — Corregir label genérico + confirmar doble acceso a Mis
+  Entradas** (completada). `infoEstadoEntrada()` → `infoEstadoPago()` en
+  `utils/format.js`, mismo mapa de 3 estados pero con el label de
+  `'pagado'` generalizado a "Pago confirmado" (antes "Entrada confirmada",
+  que sonaba a ticket y quedaba raro para vestuario — ver Fase 18).
+  Actualizados los dos consumidores (`MisEntradas.jsx`,
+  `VestuarioEvento.jsx`) y el comentario que la mencionaba en
+  `fixtures.js`; se buscó en todo el proyecto y no quedó ninguna
+  referencia al nombre viejo fuera de este documento (donde se dejan como
+  registro histórico de fases previas). El acceso doble a "Mis Entradas"
+  ya existía de la Fase 18 (`Eventos.jsx` y `Perfil.jsx` en paralelo, no
+  uno reemplazando al otro) — se confirmó que sigue así, sin tocar
+  `Perfil.jsx`. Verificado con Playwright: pagar la Malla en Vestuario y
+  confirmarla con `[DEV]` ahora muestra "Pago confirmado"; navegar a Mis
+  Entradas funciona igual desde la cartelera de Eventos y desde Perfil
+  (mismo destino, `/portal/mis-entradas`, sin errores de consola en
+  ninguno de los dos caminos).
+- ✅ **Fase 20 — Re-confirmar el acceso a Mis Entradas desde Eventos**
+  (completada, sin cambios de código). La tarea llegó especificada como si
+  el link todavía no existiera ("por el resumen anterior, no está") — al
+  abrir `Eventos.jsx` el botón "Mis entradas" ya estaba ahí, igual que
+  quedó en la Fase 18 y se reconfirmó en la Fase 19. **Causa real de la
+  confusión, no un bug:** las Fases 18 y 19 se hicieron y verificaron en
+  el árbol de trabajo, pero **nunca se commitearon** — el último commit
+  del repo sigue siendo `40da014 arreglo mapa butacas`, que es el cierre
+  de la Fase 17. La conversación de planificación en claude.ai no tiene
+  forma de ver cambios sin commitear en esta máquina, así que desde su
+  punto de vista el link legítimamente "no estaba". Esta fase no tocó
+  código — solo re-verificó ambos accesos (`Eventos.jsx` → link con ícono
+  `Ticket`; `Perfil.jsx` → fila sin modificar) con Playwright: los dos
+  navegan a `/portal/mis-entradas`, mismo título de página, sin errores de
+  consola. **Pendiente real: commitear el trabajo de las Fases 17 a 20**
+  (vestuario, rename de `infoEstadoPago`, este mismo re-chequeo) para que
+  deje de repetirse esta discrepancia — queda a criterio de la próxima
+  conversación de planificación, no se commiteó acá sin que se pida
+  explícitamente.
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 
@@ -935,6 +1035,23 @@ Postgres todavía, es la propuesta que sale de haber construido el mock.
   mandarla ahí. No se tocó porque no entraba en el alcance de esa tarea —
   el comentario en el código se actualizó para no decir "pausado" (ya no
   lo está), pero conectar el CTA queda pendiente.
+- **Reusar `infoEstadoEntrada()` para vestuario (Fase 18) dejó un label un
+  poco raro — resuelto en la Fase 19.** El spec de la Fase 18 pedía
+  explícitamente no crear una función nueva para los mismos 3 estados —
+  correcto, hubiera sido puro duplicado. El costo era que el label de
+  `'pagado'` decía "Entrada confirmada", que sonaba a ticket, no a una
+  malla o un par de zapatillas. La Fase 19 lo resolvió del lado correcto
+  (generalizar la función existente, no bifurcarla en dos):
+  `infoEstadoEntrada()` → `infoEstadoPago()`, con "Pago confirmado" en vez
+  de "Entrada confirmada" — mismo cambio para `MisEntradas.jsx` también,
+  ya que comparten la función.
+- **Primera vez corriendo Playwright en la máquina Windows del usuario, no
+  en el sandbox Linux de las fases anteriores.** No había Playwright ni
+  Chromium instalados acá — se preguntó antes de instalar (~280MB de
+  Chromium a `%LOCALAPPDATA%\ms-playwright`) en vez de asumirlo, porque a
+  diferencia del sandbox descartable de antes, esta es la PC real del
+  usuario. Confirmó que sí. Queda instalado ahí para la próxima vez, igual
+  que en el entorno anterior.
 
 ## Flujo de trabajo
 
