@@ -192,3 +192,13 @@ export const misEntradasDemo = [
     estado: 'pago_en_revision', montoTotal: 5000,
   },
 ]
+
+// Vestuario por evento — mismos 3 estados que una entrada
+// (pendiente/pago_en_revision/pagado), ver infoEstadoEntrada() en format.js.
+// Solo `ev1` tiene ítems cargados; `ev2` (entrada libre) no tiene vestuario.
+export const vestuarioPorEventoDemo = {
+  ev1: [
+    { id: 'vt1', nombre: 'Malla Gala Anual', descripcion: 'Malla violeta con detalles en tul, uso obligatorio para la Tanda 3.', precio: 18000, estado: 'pendiente' },
+    { id: 'vt2', nombre: 'Zapatillas de punta (alquiler)', descripcion: 'Alquiler por el evento, se devuelven al finalizar.', precio: 8000, estado: 'pendiente' },
+  ],
+}

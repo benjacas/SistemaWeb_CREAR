@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Spinner from '../../components/ui/Spinner'
 import Button from '../../components/ui/Button'
 import { useEvento } from '../../hooks/useEvento'
+import { vestuarioPorEventoDemo } from '../../mock/fixtures'
 import { formatFecha } from '../../utils/format'
 
 export default function EventoDetalle() {
@@ -11,6 +12,8 @@ export default function EventoDetalle() {
 
   if (cargando) return <Spinner className="mt-20" />
   if (!evento) return <p className="p-4 text-sm text-gray-400">Evento no encontrado.</p>
+
+  const tieneVestuario = (vestuarioPorEventoDemo[evento.id] ?? []).length > 0
 
   return (
     <div className="p-4 space-y-4">
@@ -41,6 +44,16 @@ export default function EventoDetalle() {
         </Button>
       ) : (
         <p className="text-xs text-gray-400 text-center">Entrada libre y gratuita — no requiere reserva.</p>
+      )}
+
+      {tieneVestuario && (
+        <Button
+          variant="secondary"
+          className="w-full justify-center"
+          onClick={() => navigate(`/portal/eventos/${evento.id}/vestuario`)}
+        >
+          Vestuario
+        </Button>
       )}
     </div>
   )

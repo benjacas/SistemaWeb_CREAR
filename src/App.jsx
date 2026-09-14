@@ -18,6 +18,7 @@ import PortalEventoDetalle from './pages/portal/EventoDetalle'
 import PortalEventoButacas from './pages/portal/EventoButacas'
 import PortalResumenCompra from './pages/portal/ResumenCompra'
 import PortalMisEntradas from './pages/portal/MisEntradas'
+import PortalVestuarioEvento from './pages/portal/VestuarioEvento'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alumnos from './pages/Alumnos'
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="eventos/:id" element={<PortalEventoDetalle />} />
           <Route path="eventos/:id/butacas" element={<PortalEventoButacas />} />
           <Route path="eventos/:id/resumen" element={<PortalResumenCompra />} />
+          <Route path="eventos/:id/vestuario" element={<PortalVestuarioEvento />} />
           <Route path="mis-entradas" element={<PortalMisEntradas />} />
         </Route>
         <Route path="/" element={appLayout}>

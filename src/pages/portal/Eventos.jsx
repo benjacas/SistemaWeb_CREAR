@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Ticket } from 'lucide-react'
 import Skeleton from '../../components/ui/Skeleton'
 import { useEventos } from '../../hooks/useEventos'
 import { formatFecha } from '../../utils/format'
@@ -17,7 +18,16 @@ export default function Eventos() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-gray-800">Eventos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-800">Eventos</h1>
+        <Link
+          to="/portal/mis-entradas"
+          className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary-light px-3 py-1.5 rounded-full hover:bg-primary/10 transition-colors"
+        >
+          <Ticket size={14} />
+          Mis entradas
+        </Link>
+      </div>
       <ul className="space-y-3">
         {eventos.map((evento) => (
           <li key={evento.id}>
