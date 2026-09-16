@@ -4,7 +4,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
-import { formatFecha, formatMoneda, infoEstadoPago } from '../../utils/format'
+import { formatFecha, formatMoneda, formatButacaCorta, infoEstadoPago } from '../../utils/format'
 
 const COLOR_POR_ESTADO = { pendiente: 'gray', pago_en_revision: 'yellow', pagado: 'green' }
 
@@ -44,7 +44,7 @@ export default function MisEntradas() {
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  {entrada.butacas.map((b) => `${b.sector} ${b.fila}-${b.columna}`).join(', ')}
+                  {entrada.butacas.map((b) => formatButacaCorta(b)).join(', ')}
                 </p>
                 <p className="text-sm font-semibold text-gray-800">{formatMoneda(entrada.montoTotal)}</p>
 

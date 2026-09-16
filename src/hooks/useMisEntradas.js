@@ -31,7 +31,7 @@ export function useMisEntradas() {
       eventoTitulo: evento?.titulo ?? '',
       fecha: evento?.fecha ?? '',
       lugar: evento?.lugar ?? '',
-      butacas: butacasSeleccionadas.map((b) => ({ sector: b.sector, fila: b.fila, columna: b.columna })),
+      butacas: butacasSeleccionadas.map((b) => ({ sector: b.sector, fila: b.fila, numero: b.numero })),
       estado: 'pago_en_revision',
       montoTotal: butacasSeleccionadas.reduce((acc, b) => acc + b.precio, 0),
     }

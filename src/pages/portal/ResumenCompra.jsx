@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation, useOutletContext } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
-import { formatMoneda } from '../../utils/format'
+import { formatMoneda, formatButaca } from '../../utils/format'
 
 export default function ResumenCompra() {
   const { id } = useParams()
@@ -9,11 +9,10 @@ export default function ResumenCompra() {
   const location = useLocation()
   const { misEntradasApi } = useOutletContext()
   const butacasSeleccionadas = location.state?.butacasSeleccionadas ?? []
+  const sillasRuedasSeleccionadas = location.state?.sillasRuedasSeleccionadas ?? []
+  const itemsSeleccionados = [...butacasSeleccionadas, ...sillasRuedasSeleccionadas]
 
-  // Se llega acá solo desde MapaButacas, que manda la selección por estado
-  // de router (location.state). Sin esa selección (ej. recarga de página,
-  // o entrar directo por URL) no hay nada que resumir.
-  if (butacasSeleccionadas.length === 0) {
+  if (itemsSeleccionados.length === 0) {
     return (
       <div className="p-4">
         <EmptyState
@@ -29,10 +28,10 @@ export default function ResumenCompra() {
     )
   }
 
-  const total = butacasSeleccionadas.reduce((acc, b) => acc + b.precio, 0)
+  const total = itemsSeleccionados.reduce((acc, b) => acc + b.precio, 0)
 
   function confirmar() {
-    misEntradasApi.confirmarCompra(id, butacasSeleccionadas)
+    misEntradasApi.confirmarCompra(id, itemsSeleccionados)
     navigate('/portal/mis-entradas')
   }
 
@@ -42,9 +41,9 @@ export default function ResumenCompra() {
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
         <ul className="space-y-2">
-          {butacasSeleccionadas.map((b) => (
+          {itemsSeleccionados.map((b) => (
             <li key={b.clave} className="flex items-center justify-between text-sm text-gray-700">
-              <span>{b.sector} · Fila {b.fila}, Butaca {b.columna}</span>
+              <span>{formatButaca(b)}</span>
               <span className="font-medium text-gray-800">{formatMoneda(b.precio)}</span>
             </li>
           ))}

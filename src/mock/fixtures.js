@@ -154,8 +154,9 @@ export const eventosDemo = [
     descripcion: 'Nuestra muestra de fin de año con la participación de todas las comisiones. Sofía baila en la Tanda 3 (Cierre).',
     fechaLimitePago: '2026-09-25',
     mapaAsientos: {
-      precio: 5000, // precio único para todo el auditorio
-      sillasRuedas: { cupo: 2 },
+        sector: 'Platea',
+        precio: 5000,
+        sillasRuedas: { cupo: 2 },
       filas: [
         { fila: 'A', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
         { fila: 'B', bloques: [[20, 18, 16], [14, 12, 10, 8, 6, 4, 2], [1, 3, 5, 7, 9, 11, 13], [15, 17, 19]] },
@@ -202,3 +203,4 @@ export const vestuarioPorEventoDemo = {
     { id: 'vt2', nombre: 'Zapatillas de punta (alquiler)', descripcion: 'Alquiler por el evento, se devuelven al finalizar.', precio: 8000, estado: 'pendiente' },
   ],
 }
+

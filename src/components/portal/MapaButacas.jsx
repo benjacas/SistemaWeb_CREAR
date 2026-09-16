@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import Button from '../ui/Button'
 import { generarAsientos, formatMoneda } from '../../utils/format'
 
-// Columna fija de grilla para cada número de butaca en las filas normales (A-J)
 const COLUMNAS_POR_NUMERO = {
   20: 2, 18: 3, 16: 4,
   14: 6, 12: 7, 10: 8, 8: 9, 6: 10, 4: 11, 2: 12,
@@ -11,7 +10,6 @@ const COLUMNAS_POR_NUMERO = {
   15: 21, 17: 22, 19: 23,
 }
 
-// La fila K es corrida (sin la letra en el medio), así que sus columnas van pegadas
 const CORRIDA_COLUMNAS_POR_NUMERO = {
   18: 3, 16: 4, 14: 5, 12: 6, 10: 7, 8: 8, 6: 9, 4: 10, 2: 11,
 }
@@ -35,6 +33,9 @@ export default function MapaButacas({ evento, butacasOcupadas }) {
 
   const ruedasSeleccionadas = Array.from({ length: cantidadRuedas }, (_, i) => ({
     clave: `RUEDAS-${i + 1}`,
+    fila: null,
+    numero: null,
+    sector: 'Silla de ruedas',
     precio,
   }))
 
@@ -47,7 +48,7 @@ export default function MapaButacas({ evento, butacasOcupadas }) {
 
   function continuar() {
     navigate(`/portal/eventos/${evento.id}/resumen`, {
-      state: { butacasSeleccionadas: seleccion, sillasRuedasSeleccionadas: cantidadRuedas },
+      state: { butacasSeleccionadas: seleccion, sillasRuedasSeleccionadas: ruedasSeleccionadas },
     })
   }
 
@@ -103,7 +104,6 @@ export default function MapaButacas({ evento, butacasOcupadas }) {
     const gridRow = FILA_A_INDICE[filaData.fila]
 
     if (filaData.corrida) {
-      // Fila K: corrida, sin pasillo ni letra en el medio
       celdas.push(Etiqueta(filaData.fila, 1, gridRow))
       filaData.corrida.forEach((a) =>
         celdas.push(Butaca(a, CORRIDA_COLUMNAS_POR_NUMERO[a.numero], gridRow))

@@ -273,12 +273,13 @@ export function itemsDelDia(clases, eventos, anio, mes, fechaISO) {
 }
 
 export function generarAsientos(mapaAsientos) {
-  const { precio } = mapaAsientos
+  const { precio, sector } = mapaAsientos
 
   const asiento = (fila, numero) => ({
     fila,
     numero,
     clave: `${fila}-${numero}`,
+    sector,
     precio,
   })
 
@@ -296,6 +297,16 @@ export function generarAsientos(mapaAsientos) {
       ),
     }
   })
+}
+
+export function formatButaca(b) {
+  if (!b.fila || b.numero == null) return b.sector
+  return `Fila ${b.fila}, Butaca ${b.numero}`
+}
+
+export function formatButacaCorta(b) {
+  if (!b.fila || b.numero == null) return b.sector
+  return `${b.fila}-${b.numero}`
 }
 
 export function infoEstadoPago(estado) {
