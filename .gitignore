@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 .env.local
+
+# backend (Python)
+__pycache__
+*.pyc
+.venv
+venv

@@ -1,0 +1,26 @@
+import enum
+
+from sqlalchemy import Column, Date, ForeignKey, Enum, text
+from sqlalchemy.dialects.postgresql import UUID
+
+from app.db.base import Base
+
+
+class EstadoListaEspera(str, enum.Enum):
+    esperando = "esperando"
+    convocado = "convocado"
+    descartado = "descartado"
+    # ⚠️ solo 'esperando' está confirmado como default real — el resto de
+    # los valores posibles del enum de Postgres no se verificó todavía.
+
+
+class ListaEspera(Base):
+    __tablename__ = "lista_espera"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    alumno_id = Column(UUID(as_uuid=True), ForeignKey("alumno.id"), nullable=False)
+    grupo_clase_id = Column(UUID(as_uuid=True), ForeignKey("grupo_clase.id"), nullable=False)
+    fecha_registro = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
+    # server_default (no default= de Python) — ver Claude.md / SCHEMA.md,
+    # "default vs server_default en enums".
+    estado = Column(Enum(EstadoListaEspera, name="estado_lista_espera"), nullable=False, server_default=text("'esperando'"))

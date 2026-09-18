@@ -19,10 +19,12 @@ no antes.
   todavía (pedí acceso de colaboradora, en trámite). Cualquier cambio se hace
   acá; en algún momento se sincroniza con el repo original de mi compañera
   (PR o merge manual) — no asumir que eso ya pasó.
-- **Backend: todavía no existe.** Se va a construir en **FastAPI + Python +
-  PostgreSQL + Docker** (decisión de la cátedra, no negociable, reemplaza a
-  Supabase). Hasta que exista, **todo el portal trabaja con datos mockeados**
-  (ver sección de datos abajo) — no hay ningún backend real al que apuntar.
+- **Backend: arrancó en la Fase B1/B2** (ver sección "Backend (FastAPI +
+  Postgres + Docker)" más abajo) — esqueleto + Docker + schema completo con
+  Alembic. **Todavía no está conectado al portal** — el frontend sigue
+  trabajando 100% con datos mockeados (ver sección de datos abajo), no hay
+  ninguna llamada real desde React a este backend todavía. Esa conexión es
+  una fase futura, no asumir que ya pasó.
 - **Login único con roles**: un solo login para todo el sistema. El token
   (cuando exista el backend) va a traer el rol del usuario logueado
   (`administrador`, `secretaria`, `profesor`, `alumno`, `tutor`), y cada rol
@@ -103,6 +105,100 @@ src/
 └── routes/
     └── (se integra a las rutas existentes de mi compañera — ver abajo)
 ```
+
+## Backend (FastAPI + Postgres + Docker)
+
+Vive en `backend/`, separado del código de React de la raíz — es un
+proyecto Python aparte dentro del mismo repo, no un paquete de node. Nada
+del portal lo consume todavía (ver "Contexto" arriba).
+
+```
+backend/
+├── app/
+│   ├── main.py              # instancia FastAPI, incluye routers
+│   ├── core/config.py        # Settings (pydantic-settings) — lee DATABASE_URL etc. de env
+│   ├── db/
+│   │   ├── base.py            # Base declarativo de SQLAlchemy
+│   │   └── session.py         # engine + SessionLocal + get_db()
+│   ├── models/                # un archivo por tabla, ver backend/SCHEMA.md
+│   └── routers/
+│       └── health.py          # GET /health
+├── alembic/                  # migraciones — env.py lee DATABASE_URL de app.core.config
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml         # servicios db (Postgres 16) + api
+├── .env.example               # copiar a .env antes de levantar
+└── SCHEMA.md                  # schema completo documentado, con lo NUEVO/propuesto marcado
+```
+
+### Cómo levantarlo
+
+```bash
+cd backend
+cp .env.example .env   # ajustar si hace falta — .env nunca se commitea (gitignored en la raíz)
+docker compose up --build
+curl localhost:8000/health   # → {"status": "ok"}
+```
+
+Para aplicar el schema contra una base nueva (ya viene aplicado si cloná
+después de la Fase 2, pero por las dudas):
+
+```bash
+docker compose exec api alembic upgrade head
+docker compose exec db psql -U crear -d crear_db -c '\dt'   # deberían aparecer 28 filas (27 tablas + alembic_version)
+```
+
+**Nota de zona horaria/entorno:** si `docker compose up` falla con
+`port is already allocated` en el 5432, es porque ya hay otro Postgres
+corriendo en esa máquina (le pasó a Claude Code probando en este sandbox —
+había un Postgres de otro proyecto sin relación ocupando el puerto). No
+es un problema del `docker-compose.yml`: cambiar momentáneamente el lado
+del host del mapeo de puertos (`"5433:5432"` en vez de `"5432:5432"`) alcanza
+para probar en una máquina con ese conflicto — el `api` habla con `db` por
+la red interna de Docker (`db:5432`), así que el puerto del host no le
+afecta para nada. El archivo commiteado usa `5432:5432`, el mapeo estándar.
+
+### Decisión de auth: `password_hash` por tabla, sin `auth_user_id`
+
+`usuario` y `padre_tutor` tienen su propio `password_hash` (columna
+NULLABLE, se completa recién en la Fase 3) en vez de un `auth_user_id`
+apuntando a un proveedor externo tipo Supabase Auth — que es justo lo que
+la cátedra pidió reemplazar (ver "Contexto" arriba). El login real (JWT +
+hashing) es una fase futura; `passlib`/`python-jose` todavía no están en
+`requirements.txt` a propósito, se suman cuando llegue esa fase.
+
+**✅ Resuelto en la Fase B3** (encontrado probando la Fase B2 a mano, corregido
+después). Los defaults de los campos `Enum` de SQLAlchemy (ej.
+`usuario.estado` default `activo`) estaban implementados como `default=`
+de Python — funcionaban perfecto insertando vía el ORM (que es como la
+app real va a escribir), pero un `INSERT` de SQL crudo sin especificar
+`estado` explícito fallaba con violación de `NOT NULL`. Se cambiaron las
+8 columnas que tenían default real en el schema original
+(`usuario.estado`, `alumno.estado`, `grupo_clase.estado`,
+`inscripcion.estado`, `lista_espera.estado`, `cargo.estado`,
+`liquidacion.estado`, `evento_institucional.tipo`) de `default=` a
+`server_default=text("'valor'")`.
+
+**✅ Auditado en el resto de las columnas en la Fase B4** (no solo
+enums) — encontró 2 columnas `Boolean` más con el mismo problema
+(`alumno.autorizacion_imagen`, `alumno.apto_fisico_presentado`) y, aparte,
+2 columnas con un default de más que nunca debió estar
+(`disciplina.tiene_profesorado`, `grupo_clase.es_profesorado` — no
+tenían default en el schema original, se les había puesto `default=False`
+de más en la Fase B2; se sacó el default por completo, no se convirtió).
+Ver **"`default=` vs `server_default` — auditado en las 27 tablas"** en
+`backend/SCHEMA.md` para la explicación completa, la lista de las 10
+columnas corregidas entre las dos fases, y la regla a seguir en cualquier
+tabla nueva de acá en adelante.
+
+### Schema completo: `backend/SCHEMA.md`
+
+El detalle de las ~28 tablas (qué está confirmado contra la base real vs.
+qué es nuevo/propuesto y todavía sin validar con la compañera) vive en
+`backend/SCHEMA.md`, no acá — es demasiado extenso para este archivo y
+tiene su propio ciclo de vida (cambia cada vez que se toca `app/models/`).
+Este `Claude.md` solo linkea a esa referencia; no la dupliques ni la dejes
+desactualizada en los dos lugares a la vez.
 
 ## Patrón de datos: hooks custom en vez de `conFallback`
 
@@ -784,6 +880,118 @@ validar con la compañera antes de tocar Postgres.
   estaba pedido y no rompe nada dejarlo. Verificado con Playwright: tocar
   la tarjeta desde Home navega a `/portal/eventos` (título "Eventos", la
   cartelera), no a `/portal/eventos/ev1`; sin errores de consola.
+- ✅ **Fase B1 — Esqueleto del backend + Docker + Postgres** (completada).
+  Numeración `B` aparte de las fases del portal (1-21 arriba): es un
+  proyecto Python separado en `backend/`, no continúa esa secuencia.
+  Estructura completa según "Backend (FastAPI + Postgres + Docker)" más
+  arriba. `docker-compose.yml` con `db` (Postgres 16, volumen persistente,
+  healthcheck con `pg_isready`) y `api` (build del Dockerfile, espera a
+  que `db` esté healthy antes de arrancar). Verificado con
+  `docker compose up --build`: ambos contenedores levantan sin error,
+  `curl localhost:8000/health` devuelve `{"status": "ok"}`. `.env` (no
+  `.env.example`) confirmado en el `.gitignore` de la raíz — el patrón sin
+  `/` inicial ya cubría `backend/.env` sin tocar nada (confirmado con
+  `git check-ignore -v backend/.env`). Se sumaron además `__pycache__`,
+  `*.pyc`, `.venv`, `venv` al `.gitignore` raíz (no estaba pedido
+  explícitamente, pero hacían falta apenas se corre Python localmente).
+- ✅ **Fase B2 — Modelos SQLAlchemy + Alembic (schema completo)**
+  (completada). 27 tablas, un archivo por tabla en `app/models/` (ver
+  `backend/SCHEMA.md` para el detalle columna por columna y qué está
+  confirmado vs. propuesto). `alembic init`, `env.py` configurado para
+  tomar `DATABASE_URL` de `app.core.config` (no del `alembic.ini`, para no
+  mantener la cadena de conexión en dos lugares) y para ver
+  `Base.metadata` completo (`app/models/__init__.py` importa las 27
+  clases). Migración autogenerada (`alembic revision --autogenerate`),
+  revisada a mano — autogenerate no agrega la extensión `pgcrypto` sola,
+  se sumó `CREATE EXTENSION IF NOT EXISTS pgcrypto` al principio de
+  `upgrade()` a mano, antes de la primera tabla. Aplicada con
+  `alembic upgrade head` contra el Postgres del `docker-compose`.
+  Verificado con `\dt` dentro del contenedor de `db`: 28 filas (27 tablas
+  + `alembic_version`). Se probó además, a mano: `gen_random_uuid()`
+  funciona, el índice parcial `cargo_butaca_activa_unica` quedó creado
+  con el `WHERE` correcto, y un insert de prueba vía `SessionLocal` de
+  SQLAlchemy confirmó que el default de un campo `Enum` (`usuario.estado`)
+  se aplica bien por el ORM (un insert equivalente por `psql` crudo, sin
+  pasar por el ORM, falla por `NOT NULL` — ver la nota de auth más arriba,
+  es el comportamiento esperado dado cómo está definido el default, no un
+  bug). Filas de prueba borradas después de verificar. Cada tabla/columna
+  `NUEVO`/`PROPUESTO` quedó con un comentario claro en el modelo de Python
+  correspondiente (no solo en `SCHEMA.md`) — ver por ejemplo
+  `app/models/cargo.py` o `app/models/vestuario_evento.py`.
+- ✅ **Fase B3 — Corregir los defaults de enum a nivel de base de datos**
+  (completada). Cierra el hallazgo de la Fase B2 (ver "Decisión de auth"
+  más arriba). Las 8 columnas con default real en el schema original
+  (`usuario.estado`, `alumno.estado`, `grupo_clase.estado`,
+  `inscripcion.estado`, `lista_espera.estado`, `cargo.estado`,
+  `liquidacion.estado`, `evento_institucional.tipo`) pasaron de
+  `default=EstadoX.valor` (Python) a `server_default=text("'valor'")`
+  (Postgres). Confirmadas contra `SCHEMA.md` las otras 4 columnas `Enum`
+  del schema (`padre_tutor.parentesco`, `usuario.rol`,
+  `grupo_clase_horario.dia_semana`, `pago.metodo`) — ninguna tenía default
+  en el original, quedaron sin tocar. Migración nueva
+  (`alembic revision --autogenerate -m "server_default en columnas de estado"`)
+  — **primer intento salió vacía** (`upgrade()`/`downgrade()` con solo
+  `pass`): Alembic no compara `server_default` a menos que se le pida
+  explícito, así que autogenerate literalmente no vio el cambio. Se agregó
+  `compare_server_default=True` a los dos `context.configure(...)` de
+  `alembic/env.py` (offline y online) y se regeneró — ahí sí detectó las 8
+  columnas y generó 8 `op.alter_column(...)` correctos en `upgrade()` (y
+  su reverso en `downgrade()`), sin necesitar ajuste manual esta vez.
+  Aplicada con `alembic upgrade head`. Verificado con las dos pruebas
+  pedidas: insert por `psql` crudo sin `estado`/`tipo` en las 8 tablas
+  (todas devolvieron el default correcto: `activo`, `activa`,
+  `esperando`, `pendiente`, `generada`, `otro`, según la tabla) y un
+  insert vía `SessionLocal` de SQLAlchemy (ORM) para confirmar que ese
+  camino sigue funcionando igual que antes. Un alumno de prueba sin
+  `estado` explícito falló por otro motivo (`autorizacion_imagen`, un
+  booleano con `default=` de Python, fuera del alcance de esta fase —
+  no es un enum) — se volvió a probar pasando esos dos booleanos y
+  `estado` salió `activo` sin problema, confirmando que el fallo inicial
+  no tenía nada que ver con el fix. Todas las filas de prueba (en 8+
+  tablas, incluyendo las filas de `disciplina`/`concepto_cobro`/
+  `grupo_clase` armadas solo para poder insertar `inscripcion`/
+  `lista_espera`/`cargo`/`liquidacion` de prueba) se borraron después de
+  verificar.
+- ✅ **Fase B4 — Auditoría completa de defaults (más allá de los enums)**
+  (completada). Se recorrieron las 27 tablas de `SCHEMA.md` contra el
+  schema original, columna por columna, no solo las que ya se sabía que
+  tenían problema. Resultado: la gran mayoría de los `server_default=`
+  que ya venían de la Fase B2 (fechas, timestamps, numéricos, booleanos)
+  estaban bien desde el principio — la Fase B2 solo se había equivocado
+  con los enums. Se encontraron y corrigieron 2 columnas `Boolean` más con
+  el mismo bug (`default=` en vez de `server_default=`):
+  `alumno.autorizacion_imagen`, `alumno.apto_fisico_presentado`. Además,
+  la auditoría encontró **un tipo de error distinto**, no cubierto por el
+  patrón anterior: 2 columnas tenían un default que directamente no
+  estaba en el schema original (`disciplina.tiene_profesorado`,
+  `grupo_clase.es_profesorado` — el original las lista como `bool` a
+  secas, sin la palabra `default`, a diferencia de otras columnas de las
+  mismas tablas que sí la tienen) — se les había puesto `default=False`
+  de más en la Fase B2. Se sacó el default por completo en vez de
+  convertirlo, para que el modelo vuelva a exigir el valor en cada INSERT
+  como el original. Un tercer caso similar
+  (`configuracion_sistema.actualizado_en`, con `server_default=now()` que
+  tampoco aparece explícito en el original) se dejó **sin tocar y
+  marcado para confirmar con la compañera** — ya usa el mecanismo
+  correcto (`server_default=`, no `default=`), así que no es el mismo bug,
+  y hay una lectura razonable de por qué el original la dejaría sin
+  default (va de la mano de `actualizado_por`, probablemente pensada para
+  que la aplicación actualice ambas juntas en cada UPDATE). Migración
+  nueva generada con `compare_server_default=True` ya configurado desde
+  la Fase B3 — detectó sola las 2 columnas que sí cambiaban algo en la
+  base (los `default=False` sacados de `disciplina`/`grupo_clase` nunca
+  habían tocado la base, así que no generaron diff — comportamiento
+  esperado, no un problema). Migración revisada a mano, sin necesitar
+  ajustes, aplicada con `alembic upgrade head`. Verificado a mayor escala
+  que las veces anteriores: insert por `psql` en `alumno` (los 2 casos
+  nuevos), confirmación de que `disciplina`/`grupo_clase` ahora **fallan**
+  correctamente sin valor explícito (prueba de que sacar el default
+  funcionó, no quedó un default fantasma), y una muestra amplia de tablas
+  nunca antes probadas con SQL crudo (`configuracion_sistema` con
+  `INSERT ... DEFAULT VALUES`, `concepto_cobro`, `comprobante`,
+  `criterio_evaluacion`, `registro_auditoria`, `notificaciones`,
+  `notificaciones_leidas`, `sueldo_usuario`) — todas devolvieron el
+  default correcto. Todas las filas de prueba borradas después.
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 
