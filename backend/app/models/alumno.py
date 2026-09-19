@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import Column, String, Date, Boolean, ForeignKey, Enum, text
+from sqlalchemy import Column, String, Date, Boolean, ForeignKey, Enum, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -30,3 +30,7 @@ class Alumno(Base):
     # "default vs server_default en enums".
     estado = Column(Enum(EstadoAlumno, name="estado_alumno"), nullable=False, server_default=text("'activo'"))
     # password_hash: NO agregar todavía — pendiente de confirmar con la compañera (ver CLAUDE.md)
+
+    __table_args__ = (
+        CheckConstraint("fecha_nacimiento < CURRENT_DATE", name="alumno_fecha_nacimiento_check"),
+    )

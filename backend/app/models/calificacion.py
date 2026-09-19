@@ -18,5 +18,5 @@ class Calificacion(Base):
     fecha_correccion = Column(Date, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("nota >= 1 AND nota <= 10", name="calificacion_nota_rango"),
+        CheckConstraint("nota >= 1.00 AND nota <= 10.00", name="calificacion_nota_rango"),
     )

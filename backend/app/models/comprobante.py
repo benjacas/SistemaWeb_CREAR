@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Date, Text, ForeignKey, text
+from sqlalchemy import Column, Integer, Date, Text, ForeignKey, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -14,3 +14,7 @@ class Comprobante(Base):
     fecha_anulacion = Column(Date, nullable=True)
     motivo_anulacion = Column(Text, nullable=True)
     emitido_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("numero > 0", name="comprobante_numero_check"),
+    )

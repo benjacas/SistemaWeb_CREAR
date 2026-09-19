@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import Column, String, Date, Numeric, ForeignKey, Enum, text
+from sqlalchemy import Column, String, Date, Numeric, ForeignKey, Enum, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -27,3 +27,7 @@ class Liquidacion(Base):
     aprobada_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
     fecha_aprobacion = Column(Date, nullable=True)
     fecha_pago = Column(Date, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("monto >= 0", name="liquidacion_monto_check"),
+    )

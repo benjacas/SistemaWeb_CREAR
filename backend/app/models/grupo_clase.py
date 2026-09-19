@@ -18,11 +18,12 @@ class GrupoClase(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     disciplina_id = Column(UUID(as_uuid=True), ForeignKey("disciplina.id"), nullable=False)
-    # Sin default: el schema original ("es_profesorado bool", sin la
-    # palabra "default") no le daba uno. Había quedado con default=False de
-    # más en la Fase B2, corregido en la auditoría de la Fase B4.
-    es_profesorado = Column(Boolean, nullable=False)
-    nivel = Column(String, nullable=True)
+    # Corregido en la Fase B6 — mismo caso que disciplina.tiene_profesorado:
+    # schema_original_supabase.sql sí tiene DEFAULT false acá.
+    es_profesorado = Column(Boolean, nullable=False, server_default=text("false"))
+    # nivel: NOT NULL en el original ("nivel text NOT NULL") — estaba
+    # nullable=True por error, corregido en la Fase B6.
+    nivel = Column(String, nullable=False)
     orden = Column(Integer, nullable=True)
     nombre_display = Column(String, nullable=True)
     profesora_id = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=False)

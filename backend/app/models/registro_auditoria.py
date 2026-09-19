@@ -12,5 +12,10 @@ class RegistroAuditoria(Base):
     accion = Column(String, nullable=False)
     entidad_afectada = Column(String, nullable=False)
     entidad_id = Column(UUID(as_uuid=True), nullable=False)
-    fecha_hora = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    # clock_timestamp(), no now() — corregido en la Fase B6 contra
+    # schema_original_supabase.sql (la Fase B5 solo había corregido este
+    # mismo error en configuracion_sistema.actualizado_en, asumiendo sin
+    # confirmar que acá sí correspondía now() — el archivo original
+    # muestra que también es clock_timestamp() acá).
+    fecha_hora = Column(DateTime(timezone=True), nullable=False, server_default=text("clock_timestamp()"))
     detalle = Column(Text, nullable=True)

@@ -166,6 +166,10 @@ apuntando a un proveedor externo tipo Supabase Auth — que es justo lo que
 la cátedra pidió reemplazar (ver "Contexto" arriba). El login real (JWT +
 hashing) es una fase futura; `passlib`/`python-jose` todavía no están en
 `requirements.txt` a propósito, se suman cuando llegue esa fase.
+**Confirmado en la Fase B6 contra `schema_original_supabase.sql`**: la
+columna `auth_user_id` sí existe ahí (FK a `auth.users`), la decisión de
+no portarla es explícita, no un olvido — documentado en el modelo mismo
+para que no se "redescubra" como faltante.
 
 **✅ Resuelto en la Fase B3** (encontrado probando la Fase B2 a mano, corregido
 después). Los defaults de los campos `Enum` de SQLAlchemy (ej.
@@ -971,13 +975,11 @@ validar con la compañera antes de tocar Postgres.
   convertirlo, para que el modelo vuelva a exigir el valor en cada INSERT
   como el original. Un tercer caso similar
   (`configuracion_sistema.actualizado_en`, con `server_default=now()` que
-  tampoco aparece explícito en el original) se dejó **sin tocar y
-  marcado para confirmar con la compañera** — ya usa el mecanismo
-  correcto (`server_default=`, no `default=`), así que no es el mismo bug,
-  y hay una lectura razonable de por qué el original la dejaría sin
-  default (va de la mano de `actualizado_por`, probablemente pensada para
-  que la aplicación actualice ambas juntas en cada UPDATE). Migración
-  nueva generada con `compare_server_default=True` ya configurado desde
+  tampoco aparecía explícito en `SCHEMA.md`) se había dejado sin tocar y
+  marcado para confirmar con la compañera — **resuelto en la Fase B5, ver
+  más abajo: era un error de transcripción de `SCHEMA.md`, no del
+  modelo.** Migración nueva generada con `compare_server_default=True` ya
+  configurado desde
   la Fase B3 — detectó sola las 2 columnas que sí cambiaban algo en la
   base (los `default=False` sacados de `disciplina`/`grupo_clase` nunca
   habían tocado la base, así que no generaron diff — comportamiento
@@ -992,6 +994,106 @@ validar con la compañera antes de tocar Postgres.
   `criterio_evaluacion`, `registro_auditoria`, `notificaciones`,
   `notificaciones_leidas`, `sueldo_usuario`) — todas devolvieron el
   default correcto. Todas las filas de prueba borradas después.
+- ✅ **Fase B5 — Corregir `actualizado_en` con el dato correcto**
+  (completada). Cierra el caso que la Fase B4 había dejado "pendiente de
+  confirmar". **La causa real era un error de transcripción en
+  `SCHEMA.md`, no del modelo**: el bullet de la tabla `configuracion_sistema`
+  (escrito en la Fase B2) siempre había dicho `actualizado_en (timestamptz,
+  default ahora)` — sí tenía default —, pero la sección de auditoría que
+  se agregó en la Fase B4 afirmó lo contrario ("sin la palabra `default`"
+  en el original), dos frases contradictorias en el mismo documento. El
+  original en realidad especifica `default clock_timestamp()`, no un
+  `now()` genérico — a diferencia de los otros 3 campos `timestamptz` del
+  schema (todos "creado en", donde `now()` alcanza),
+  `configuracion_sistema.actualizado_en` es una marca de "última
+  modificación": `now()`/`CURRENT_TIMESTAMP` devuelve la hora de *inicio
+  de la transacción* (congelada durante toda la transacción),
+  `clock_timestamp()` la hora real del reloj en el momento exacto del
+  `UPDATE`. Modelo corregido (`server_default=text("clock_timestamp()")`),
+  migración generada (autogenerate la detectó sola, `compare_server_default=True`
+  sigue funcionando), revisada sin necesitar ajustes, aplicada. Verificado
+  con `psql`: valor por defecto correcto en un insert simple, y — prueba
+  más concluyente — dos inserts dentro de la misma transacción separados
+  por `pg_sleep(1)` devolvieron `actualizado_en` **distintos**, lo que
+  solo pasa con `clock_timestamp()` (con `now()` habrían salido iguales).
+  Filas de prueba borradas después (la del `ROLLBACK` se descartó sola).
+  `SCHEMA.md` se había releído completo contra el original para esta tabla
+  en ese momento y parecía no haber más problemas — **eso resultó
+  incompleto: la Fase B6 (más abajo) encontró que "releer de memoria"
+  seguía sin ser suficiente**, había más columnas y hasta una tabla nueva
+  sin transcribir bien.
+- ✅ **Fase B6 — Auditoría mecánica completa contra
+  `schema_original_supabase.sql`** (completada). Cambio de método: en vez
+  de comparar contra `SCHEMA.md` o de memoria (que es como se venían
+  arrastrando errores desde la Fase B2), se puso el archivo SQL original
+  al lado de cada modelo de Python, tabla por tabla, columna por columna
+  — existencia, default, `CHECK`. Encontró bastante más que las fases
+  anteriores:
+  - **Columna faltante**: `configuracion_sistema.kapso_api_key` (text,
+    nullable) no existía en el modelo. Agregada, mismo criterio de dato
+    sensible que `mp_access_token`.
+  - **Defaults faltantes**: `configuracion_sistema.direccion` (default
+    `'Barrio Observatorio, Córdoba'`) y `.leyenda_comprobante` (default
+    `'Comprobante administrativo interno - Escuela de Danzas CREAR'`) no
+    tenían ningún default en el modelo.
+  - **Defaults de más, sacados por error en la Fase B4**:
+    `disciplina.tiene_profesorado` y `grupo_clase.es_profesorado` **sí**
+    tienen `DEFAULT false` en el original — la Fase B4 los había sacado
+    asumiendo lo contrario sin tener el archivo real a mano. Recuperados.
+  - **Un tercer caso de `now()` en vez de `clock_timestamp()`**:
+    `registro_auditoria.fecha_hora` — la Fase B5 había corregido este
+    mismo error solo en `configuracion_sistema.actualizado_en`, asumiendo
+    sin confirmar que los demás timestamptz sí usaban `now()`. El
+    original muestra que `registro_auditoria.fecha_hora` **también** es
+    `clock_timestamp()`.
+  - **Precisión numérica**: 7 columnas (`configuracion_sistema.arancel_cuota_base`,
+    `.arancel_matricula_base`, `.porcentaje_recargo_mora`,
+    `.porcentaje_descuento_familiar`, `.umbral_asistencia_alerta`,
+    `cargo.descuento_aplicado`, `.recargo_aplicado`) tenían el default
+    numéricamente correcto pero sin los decimales del original (`40000`
+    en vez de `40000.00`, etc.) — importa de verdad: una columna
+    `numeric` sin precisión declarada conserva la escala del literal.
+  - **Nullability invertida, encontrada de yapa** (no era parte de la
+    lista original de "existencia/default/CHECK", pero saltó a la vista
+    comparando columna por columna): `grupo_clase.nivel` es NOT NULL en
+    el original y estaba `nullable=True`; `cargo.descuento_aplicado` y
+    `.recargo_aplicado` son nullable en el original (el propio `CHECK`
+    de cada una, `... IS NULL OR ... >= 0`, solo tiene sentido si pueden
+    ser NULL) y estaban `nullable=False`. Las 3 corregidas.
+  - **15 `CheckConstraint` agregados** — nunca se habían auditado en
+    ninguna fase anterior: `alumno.fecha_nacimiento`,
+    `configuracion_sistema` (4), `asistencia.fecha`,
+    `comprobante.numero`, `cargo` (4), `pago` (2), `sueldo_usuario.monto`,
+    `liquidacion.monto`. Más la precisión de `calificacion.nota` corregida
+    a `1.00`/`10.00` (ya existía, pero con `1`/`10`).
+  - **`usuario`/`padre_tutor.auth_user_id` revisado y confirmado que NO
+    se porta** — sí existe en el original (Supabase Auth), pero es
+    justo lo que este backend reemplaza (ver "Decisión de auth" en
+    `SCHEMA.md`); quedó documentado explícitamente en el modelo para que
+    no se "redescubra" como columna faltante en una futura auditoría.
+  - **Una sola migración con todo** (no una por hallazgo, a propósito).
+    Autogenerate detectó 8 de los cambios solo; **no detectó nada de la
+    precisión numérica** (normaliza literales numéricos al comparar, no
+    marca diff entre `"40000"` y `"40000.00"`) **ni ningún `CHECK`**
+    (limitación conocida de Alembic con Postgres) — los 7 `alter_column`
+    de precisión y los 15 `create_check_constraint` se agregaron a mano
+    a la migración generada, con su reverso simétrico en `downgrade()`.
+    Aplicada con `alembic upgrade head`.
+  - Verificado con `psql`: los defaults nuevos/corregidos salen bien en
+    un `INSERT ... DEFAULT VALUES`; los 15 `CHECK` se probaron con una
+    muestra representativa de inserts inválidos (`alumno` con
+    `fecha_nacimiento` futura, `comprobante.numero = 0`,
+    `configuracion_sistema.dia_vencimiento_cuota = 30`) — los 3
+    rechazados correctamente por Postgres, no solo "existen" sino que
+    bloquean de verdad. Filas de prueba borradas después.
+  - `SCHEMA.md` reescrito: la sección de defaults dejó de ser una lista
+    de parches fase por fase y pasa a listar, tabla por tabla, el estado
+    final confirmado (default + `CHECK` + nullability donde no es obvia)
+    contra el archivo original. Nueva sección dedicada a la limitación de
+    Alembic con `CHECK` constraints. Agregada la línea final pedida:
+    "Este documento se valida contra `schema_original_supabase.sql`, no
+    de memoria — ante cualquier duda futura, comparar contra ese archivo,
+    no contra una descripción de él."
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 

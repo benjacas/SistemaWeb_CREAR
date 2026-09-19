@@ -38,8 +38,13 @@ class Usuario(Base):
     # Claude.md / SCHEMA.md, "default vs server_default en enums".
     estado = Column(Enum(EstadoUsuario, name="estado_usuario"), nullable=False, server_default=text("'activo'"))
     fecha_alta = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
-    # NULLABLE por ahora — se completa en la Fase 3 (login real). Reemplaza
-    # a un eventual auth_user_id de un proveedor externo: la decisión fue
-    # manejar auth con password_hash propio en esta misma tabla en vez de
-    # delegarlo (ver Claude.md, decisión de auth).
+    # NULLABLE por ahora — se completa en la Fase 3 (login real).
+    # schema_original_supabase.sql SÍ tiene `auth_user_id uuid NOT NULL
+    # UNIQUE` acá (FK a auth.users) — no se portó a propósito, no es un
+    # olvido: es Supabase Auth, justo lo que este proyecto reemplaza (ver
+    # "Contexto" en Claude.md). La decisión fue manejar auth con
+    # password_hash propio en esta misma tabla en vez de depender de un
+    # proveedor externo (ver Claude.md, decisión de auth). Confirmado
+    # contra el archivo original en la Fase B6, no se vuelve a tocar salvo
+    # que la cátedra cambie de decisión sobre Supabase.
     password_hash = Column(String, nullable=True)

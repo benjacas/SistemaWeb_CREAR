@@ -9,11 +9,10 @@ class Disciplina(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     nombre = Column(String, nullable=False, unique=True)
-    # Sin default: en el schema original ("tiene_profesorado bool", sin la
-    # palabra "default" — a diferencia de "activo bool default true" en la
-    # misma tabla) no lo tenía. Había quedado con default=False de más en
-    # la Fase B2, corregido en la auditoría de la Fase B4 (no se convirtió
-    # a server_default porque no debería tener ningún default).
-    tiene_profesorado = Column(Boolean, nullable=False)
+    # Corregido en la Fase B6: la Fase B4 había sacado este default
+    # asumiendo que el original no lo tenía, pero contra
+    # schema_original_supabase.sql (fuente primaria, no una descripción de
+    # ella) sí lo tiene: "tiene_profesorado boolean NOT NULL DEFAULT false".
+    tiene_profesorado = Column(Boolean, nullable=False, server_default=text("false"))
     arancel_base = Column(Numeric, nullable=True)
     activo = Column(Boolean, nullable=False, server_default=text("true"))

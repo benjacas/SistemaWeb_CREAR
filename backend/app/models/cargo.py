@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import Column, String, Text, Integer, Date, Numeric, ForeignKey, Enum, Index, text
+from sqlalchemy import Column, String, Text, Integer, Date, Numeric, ForeignKey, Enum, Index, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -26,8 +26,11 @@ class Cargo(Base):
     descripcion = Column(Text, nullable=True)
     periodo = Column(String, nullable=True)
     monto_original = Column(Numeric, nullable=False)
-    descuento_aplicado = Column(Numeric, nullable=False, server_default=text("0"))
-    recargo_aplicado = Column(Numeric, nullable=False, server_default=text("0"))
+    # nullable=True (no False) a propósito: el original no las marca NOT
+    # NULL, y el propio CHECK ("IS NULL OR >= 0") solo tiene sentido si
+    # pueden ser NULL — corregido en la Fase B6, estaban en nullable=False.
+    descuento_aplicado = Column(Numeric, nullable=True, server_default=text("0.00"))
+    recargo_aplicado = Column(Numeric, nullable=True, server_default=text("0.00"))
     monto_final = Column(Numeric, nullable=False)
     fecha_generacion = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
     fecha_vencimiento = Column(Date, nullable=True)
@@ -60,4 +63,8 @@ class Cargo(Base):
             unique=True,
             postgresql_where=text("estado IN ('pendiente', 'pago_en_revision', 'pagado')"),
         ),
+        CheckConstraint("monto_original > 0", name="cargo_monto_original_check"),
+        CheckConstraint("descuento_aplicado IS NULL OR descuento_aplicado >= 0", name="cargo_descuento_aplicado_check"),
+        CheckConstraint("recargo_aplicado IS NULL OR recargo_aplicado >= 0", name="cargo_recargo_aplicado_check"),
+        CheckConstraint("monto_final >= 0", name="cargo_monto_final_check"),
     )

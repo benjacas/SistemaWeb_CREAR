@@ -27,5 +27,7 @@ class PadreTutor(Base):
     telefono = Column(String, nullable=True)
     parentesco = Column(Enum(Parentesco, name="parentesco"), nullable=True)
     # NULLABLE por ahora — se completa en la Fase 3 (login real). Mismo
-    # motivo que en usuario.py: sin auth_user_id, auth propio acá.
+    # motivo que en usuario.py: schema_original_supabase.sql tiene
+    # `auth_user_id uuid UNIQUE` acá (Supabase Auth, nullable a diferencia
+    # de usuario), no se porta a propósito — auth propio con password_hash.
     password_hash = Column(String, nullable=True)
