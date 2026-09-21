@@ -2,7 +2,7 @@ import { CheckCircle2, Banknote, Landmark, CreditCard, Share2 } from 'lucide-rea
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import { useToast } from '../../context/ToastContext'
-import { formatMoneda, formatFecha, infoMetodoPago } from '../../utils/format'
+import { formatMoneda, formatFecha, infoMetodoPago, ultimoPago } from '../../utils/format'
 
 const ICONOS_METODO = { banknote: Banknote, landmark: Landmark, 'credit-card': CreditCard }
 
@@ -16,8 +16,8 @@ export function IconoMetodoPago({ metodo, size = 14, className = '' }) {
 // — sin un celular real a mano para probarlo, esto se hace a prueba de que
 // no exista en vez de asumir que sí. Pendiente confirmar el share nativo en
 // un dispositivo móvil real (ver Claude.md, Decisiones pendientes).
-async function compartirComprobante(cargo, toast) {
-  const texto = `Comprobante ${cargo.comprobante} — ${cargo.concepto} — ${formatMoneda(cargo.monto_final)}`
+async function compartirComprobante(cargo, pago, toast) {
+  const texto = `Comprobante ${pago?.comprobante_numero ?? '—'} — ${cargo.concepto} — ${formatMoneda(cargo.monto_final)}`
   if (navigator.share) {
     try {
       await navigator.share({ title: 'Comprobante de pago', text: texto })
@@ -37,7 +37,11 @@ async function compartirComprobante(cargo, toast) {
 export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
   const toast = useToast()
   if (!cargo) return null
-  const { label: metodoLabel } = infoMetodoPago(cargo.metodo)
+  // LÍMITE CONOCIDO: muestra solo el pago más reciente del cargo (ver
+  // ultimoPago en utils/format.js) — si un cargo llega a tener más de un
+  // pago, esta pantalla no los lista todos todavía.
+  const pago = ultimoPago(cargo)
+  const { label: metodoLabel } = infoMetodoPago(pago?.metodo)
   const nombreAlumno = alumno ? `${alumno.nombre} ${alumno.apellido}` : '—'
 
   return (
@@ -47,7 +51,7 @@ export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
           <CheckCircle2 size={28} className="text-emerald-500" />
         </div>
         <p className="text-base font-semibold text-gray-800">¡Pago confirmado!</p>
-        <p className="text-xs text-gray-400">N.º {cargo.comprobante}</p>
+        <p className="text-xs text-gray-400">N.º {pago?.comprobante_numero ?? '—'}</p>
       </div>
 
       <dl className="space-y-3 text-sm">
@@ -62,13 +66,13 @@ export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
         <div className="flex items-center justify-between gap-3">
           <dt className="text-gray-400">Método</dt>
           <dd className="font-medium text-gray-800 flex items-center gap-1.5">
-            <IconoMetodoPago metodo={cargo.metodo} className="text-gray-400" />
+            <IconoMetodoPago metodo={pago?.metodo} className="text-gray-400" />
             {metodoLabel}
           </dd>
         </div>
         <div className="flex items-center justify-between gap-3">
           <dt className="text-gray-400">Fecha</dt>
-          <dd className="font-medium text-gray-800">{formatFecha(cargo.fecha_pago)}</dd>
+          <dd className="font-medium text-gray-800">{pago ? formatFecha(pago.fecha_pago) : '—'}</dd>
         </div>
       </dl>
 
@@ -77,7 +81,7 @@ export default function ComprobanteModal({ isOpen, onClose, cargo, alumno }) {
         <span className="text-xl font-bold text-gray-800">{formatMoneda(cargo.monto_final)}</span>
       </div>
 
-      <Button variant="primary" className="w-full justify-center mt-5" onClick={() => compartirComprobante(cargo, toast)}>
+      <Button variant="primary" className="w-full justify-center mt-5" onClick={() => compartirComprobante(cargo, pago, toast)}>
         <Share2 size={16} />
         Compartir
       </Button>

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Text, Date, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -11,3 +12,5 @@ class Examen(Base):
     grupo_clase_id = Column(UUID(as_uuid=True), ForeignKey("grupo_clase.id"), nullable=False)
     fecha = Column(Date, nullable=False)
     descripcion = Column(Text, nullable=True)
+
+    grupo_clase = relationship("GrupoClase")

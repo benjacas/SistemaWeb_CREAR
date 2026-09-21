@@ -1,13 +1,17 @@
 import { useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Phone, KeyRound, Bell, CreditCard, HelpCircle, ChevronRight, LogOut, Ticket } from 'lucide-react'
+import { Check, Phone, KeyRound, Bell, CreditCard, HelpCircle, ChevronRight, LogOut, Ticket, AlertTriangle } from 'lucide-react'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
+import Skeleton from '../../components/ui/Skeleton'
+import EmptyState from '../../components/ui/EmptyState'
 import ConfirmModal from '../../components/ui/ConfirmModal'
 import EditarContactoModal from '../../components/portal/EditarContactoModal'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
+import { AuthContext } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { familiaDemo, configInstitucionalDemo } from '../../mock/fixtures'
+import { useTutorPerfil } from '../../hooks/useTutorPerfil'
+import { useConfiguracion } from '../../hooks/useConfiguracion'
 import { estadoAptoFisico } from '../../utils/format'
 
 // Sin página de destino todavía para "Métodos de pago guardados" y "Ayuda y
@@ -24,24 +28,51 @@ const ACCESOS = [
 
 export default function Perfil() {
   const navigate = useNavigate()
-  const { alumnoActivo, setAlumnoActivo, alumnosVinculados, actualizarAlumnoActivo } = useContext(AlumnoActivoContext)
+  const { alumnoActivo, setAlumnoActivo, alumnosVinculados } = useContext(AlumnoActivoContext)
+  const { logout } = useContext(AuthContext)
+  const { tutor, cargando: cargandoTutor, error: errorTutor, actualizarPerfil } = useTutorPerfil()
+  const { configuracion, cargando: cargandoConfig } = useConfiguracion()
   const toast = useToast()
   const [editandoContacto, setEditandoContacto] = useState(false)
   const [confirmandoSalir, setConfirmandoSalir] = useState(false)
 
-  function handleGuardarContacto(cambios) {
-    actualizarAlumnoActivo(cambios)
+  async function handleGuardarContacto(cambios) {
+    await actualizarPerfil(cambios)
     toast('Datos de contacto actualizados.')
   }
+
+  if (cargandoTutor || cargandoConfig) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex flex-col items-center gap-2 py-2">
+          <Skeleton className="w-[72px] h-[72px] rounded-full" />
+          <Skeleton className="h-5 w-40" />
+        </div>
+        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
+    )
+  }
+
+  if (errorTutor) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="No se pudo cargar tu perfil"
+        description="Hubo un problema al conectar con el servidor. Probá de nuevo en un momento."
+      />
+    )
+  }
+
+  const nombreCompleto = `${tutor.nombre} ${tutor.apellido}`
 
   return (
     <div className="p-4 space-y-4">
       {/* Encabezado */}
       <div className="flex flex-col items-center text-center gap-2 py-2">
-        <Avatar nombre={familiaDemo.nombre} size={72} />
+        <Avatar nombre={nombreCompleto} size={72} />
         <div>
-          <p className="text-lg font-bold text-gray-800">{familiaDemo.nombre}</p>
-          <p className="text-xs text-gray-400">DNI {familiaDemo.dni}</p>
+          <p className="text-lg font-bold text-gray-800">{nombreCompleto}</p>
         </div>
       </div>
 
@@ -51,7 +82,7 @@ export default function Perfil() {
         <ul className="space-y-1">
           {alumnosVinculados.map((alumno) => {
             const activa = alumno.id === alumnoActivo?.id
-            const apto = estadoAptoFisico(alumno, configInstitucionalDemo.plazoDiasAptoFisico)
+            const apto = estadoAptoFisico(alumno, configuracion.plazo_dias_apto_fisico)
             return (
               <li
                 key={alumno.id}
@@ -62,7 +93,6 @@ export default function Perfil() {
                   <p className="text-sm font-medium text-gray-800 truncate">
                     {alumno.nombre} {alumno.apellido}
                   </p>
-                  <p className="text-xs text-gray-400 truncate">{alumno.grupoPrincipal}</p>
                   <p className={`text-xs leading-snug ${apto.vigente ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {apto.mensaje}
                   </p>
@@ -122,7 +152,7 @@ export default function Perfil() {
         </ul>
       </div>
 
-      {/* Cerrar sesión — sin login real todavía, redirige nomás (ver Claude.md) */}
+      {/* Cerrar sesión — real desde la Fase 3b, ver AuthContext */}
       <button
         type="button"
         onClick={() => setConfirmandoSalir(true)}
@@ -135,14 +165,14 @@ export default function Perfil() {
       <EditarContactoModal
         isOpen={editandoContacto}
         onClose={() => setEditandoContacto(false)}
-        alumno={alumnoActivo}
+        datosActuales={tutor}
         onGuardar={handleGuardarContacto}
       />
 
       <ConfirmModal
         isOpen={confirmandoSalir}
         onClose={() => setConfirmandoSalir(false)}
-        onConfirm={() => navigate('/login')}
+        onConfirm={() => { logout(); navigate('/portal-login', { replace: true }) }}
         title="Cerrar sesión"
         message="¿Seguro que querés cerrar sesión?"
         confirmLabel="Confirmar"

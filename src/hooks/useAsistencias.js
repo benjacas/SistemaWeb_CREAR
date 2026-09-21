@@ -1,24 +1,28 @@
-import { useState, useEffect } from 'react'
-import { asistenciasDemo } from '../mock/fixtures'
+import { useState, useEffect, useContext } from 'react'
+import { getAsistencia } from '../api/client'
+import { AuthContext } from '../context/AuthContext'
 
 export function useAsistencias(alumnoId) {
+  const { token } = useContext(AuthContext)
   const [asistencias, setAsistencias] = useState([])
   const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     async function cargar() {
+      setCargando(true)
+      setError(null)
       try {
-        // más adelante: const data = await api.getAsistencias(alumnoId)
-        setAsistencias(asistenciasDemo)
+        const data = await getAsistencia(alumnoId, token)
+        setAsistencias(data)
       } catch (error) {
-        console.warn('[modo demo] asistencias falló, usando mock', error)
-        setAsistencias(asistenciasDemo)
+        setError(error)
       } finally {
         setCargando(false)
       }
     }
     cargar()
-  }, [alumnoId])
+  }, [alumnoId, token])
 
-  return { asistencias, cargando }
+  return { asistencias, cargando, error }
 }

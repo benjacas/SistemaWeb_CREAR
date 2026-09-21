@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
 import Button from '../../components/ui/Button'
@@ -8,6 +8,10 @@ import ClaseDetalleModal from '../../components/portal/ClaseDetalleModal'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useToast } from '../../context/ToastContext'
 import { useClases } from '../../hooks/useClases'
+// MOCK A PROPÓSITO — el cupo por clase no existe en el modelo real todavía
+// (ver backend/SCHEMA.md), así que "Clases disponibles" sigue mockeada acá
+// mismo, sin pasar por useClases() (que desde esta fase es solo real).
+import { clasesDisponiblesDemo, solicitudesInscripcionDemo } from '../../mock/fixtures'
 import { estadoCupo } from '../../utils/format'
 
 const MENSAJE_SOLICITUD = {
@@ -29,14 +33,13 @@ function BadgeCupo({ clase }) {
 export default function Clases() {
   const navigate = useNavigate()
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { misClases, clasesDisponibles, cargando, solicitudes, solicitarInscripcion } = useClases(alumnoActivo?.id)
+  const { clases: misClases, cargando, error } = useClases(alumnoActivo?.id)
   const toast = useToast()
   const [claseDetalle, setClaseDetalle] = useState(null)
-
-  if (cargando) return <Spinner className="mt-20" />
+  const [solicitudes, setSolicitudes] = useState({ ...solicitudesInscripcionDemo })
 
   function handleSolicitar(claseId, tipo) {
-    solicitarInscripcion(claseId, tipo)
+    setSolicitudes((prev) => ({ ...prev, [claseId]: tipo }))
     toast(MENSAJE_SOLICITUD[tipo])
   }
 
@@ -56,25 +59,33 @@ export default function Clases() {
       {/* Mis clases */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-3">Mis clases</h3>
-        <ul className="space-y-1">
-          {misClases.map((clase) => (
-            <li
-              key={clase.id}
-              onClick={() => setClaseDetalle(clase)}
-              className="p-2.5 rounded-xl cursor-pointer hover:bg-primary-subtle transition-colors"
-            >
-              <p className="text-sm font-medium text-gray-800 truncate">{clase.nombre}</p>
-              <p className="text-xs text-gray-400 truncate">{clase.nivel} · {clase.horario}</p>
-            </li>
-          ))}
-        </ul>
+        {cargando ? (
+          <Spinner className="py-6" />
+        ) : error ? (
+          <p className="text-xs text-red-500 flex items-center gap-1.5">
+            <AlertTriangle size={14} /> No se pudieron cargar tus clases. Probá de nuevo en un momento.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {misClases.map((clase) => (
+              <li
+                key={clase.id}
+                onClick={() => setClaseDetalle(clase)}
+                className="p-2.5 rounded-xl cursor-pointer hover:bg-primary-subtle transition-colors"
+              >
+                <p className="text-sm font-medium text-gray-800 truncate">{clase.nombre}</p>
+                <p className="text-xs text-gray-400 truncate">{clase.nivel} · {clase.horario}</p>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Clases disponibles */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-3">Clases disponibles</h3>
         <ul className="space-y-3">
-          {clasesDisponibles.map((clase) => {
+          {clasesDisponiblesDemo.map((clase) => {
             const { lleno } = estadoCupo(clase)
             const solicitud = solicitudes[clase.id]
             const deshabilitada = lleno && !solicitud

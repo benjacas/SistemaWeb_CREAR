@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Date, Boolean, ForeignKey, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -12,6 +13,8 @@ class Asistencia(Base):
     fecha = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
     presente = Column(Boolean, nullable=False)
     registrado_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=False)
+
+    inscripcion = relationship("Inscripcion")
 
     __table_args__ = (
         CheckConstraint("fecha <= CURRENT_DATE", name="asistencia_fecha_check"),

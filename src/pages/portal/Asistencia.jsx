@@ -1,6 +1,8 @@
 import { useContext, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Skeleton from '../../components/ui/Skeleton'
+import EmptyState from '../../components/ui/EmptyState'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useAsistencias } from '../../hooks/useAsistencias'
 import { grupoAsistenciaDemo, umbralAsistenciaDemo } from '../../mock/fixtures'
@@ -14,7 +16,7 @@ import {
 
 export default function Asistencia() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { asistencias, cargando } = useAsistencias(alumnoActivo?.id)
+  const { asistencias, cargando, error } = useAsistencias(alumnoActivo?.id)
   const [mesSeleccionado, setMesSeleccionado] = useState(null)
 
   if (cargando) {
@@ -29,6 +31,16 @@ export default function Asistencia() {
           <Skeleton className="h-10 rounded-xl" />
         </div>
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="No se pudo cargar la asistencia"
+        description="Hubo un problema al conectar con el servidor. Probá de nuevo en un momento."
+      />
     )
   }
 

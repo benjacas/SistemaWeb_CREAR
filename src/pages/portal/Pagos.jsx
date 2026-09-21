@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react'
-import { Wallet, CalendarCheck2, CheckCircle2 } from 'lucide-react'
+import { Wallet, CalendarCheck2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Skeleton from '../../components/ui/Skeleton'
 import Button from '../../components/ui/Button'
@@ -7,7 +7,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ComprobanteModal, { IconoMetodoPago } from '../../components/portal/ComprobanteModal'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useCargos } from '../../hooks/useCargos'
-import { formatMoneda, formatFecha, formatMesLabel, obtenerBadgeCargo, infoMetodoPago } from '../../utils/format'
+import { formatMoneda, formatFecha, formatMesLabel, obtenerBadgeCargo, infoMetodoPago, ultimoPago } from '../../utils/format'
 
 const COLOR_BADGE_POR_LABEL = {
   Pagado: 'green',
@@ -23,7 +23,7 @@ function BadgeCargo({ cargo }) {
 
 export default function Pagos() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { cargos, cargando } = useCargos(alumnoActivo?.id)
+  const { cargos, cargando, error } = useCargos(alumnoActivo?.id)
   const [cargoComprobante, setCargoComprobante] = useState(null)
 
   if (cargando) {
@@ -33,6 +33,16 @@ export default function Pagos() {
         <Skeleton className="h-14 rounded-xl" />
         <Skeleton className="h-14 rounded-xl" />
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="No se pudieron cargar los pagos"
+        description="Hubo un problema al conectar con el servidor. Probá de nuevo en un momento."
+      />
     )
   }
 
@@ -109,6 +119,7 @@ export default function Pagos() {
         <ul className="space-y-1">
           {historial.map((cargo) => {
             const pagado = cargo.estado === 'pagado'
+            const pago = ultimoPago(cargo)
             return (
               <li
                 key={cargo.id}
@@ -120,12 +131,12 @@ export default function Pagos() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{cargo.concepto}</p>
                   <p className="text-xs text-gray-400 flex items-center gap-1">
-                    {pagado ? (
+                    {pagado && pago ? (
                       <>
-                        Pagado el {formatFecha(cargo.fecha_pago, { conAnio: false })}
+                        Pagado el {formatFecha(pago.fecha_pago, { conAnio: false })}
                         <span className="mx-0.5">·</span>
-                        <IconoMetodoPago metodo={cargo.metodo} size={12} className="text-gray-400" />
-                        {infoMetodoPago(cargo.metodo).label}
+                        <IconoMetodoPago metodo={pago.metodo} size={12} className="text-gray-400" />
+                        {infoMetodoPago(pago.metodo).label}
                       </>
                     ) : (
                       formatMesLabel(cargo.periodo)

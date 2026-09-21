@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Text, Date, Numeric, ForeignKey, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -16,6 +17,9 @@ class Calificacion(Base):
     fecha_carga = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
     corregida_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
     fecha_correccion = Column(Date, nullable=True)
+
+    examen_criterio = relationship("ExamenCriterio")
+    alumno = relationship("Alumno")
 
     __table_args__ = (
         CheckConstraint("nota >= 1.00 AND nota <= 10.00", name="calificacion_nota_rango"),

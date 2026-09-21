@@ -8,7 +8,9 @@ export const familiaDemo = {
 
 export const alumnosVinculadosDemo = [
   {
-    id: 'a1', nombre: 'Sofía', apellido: 'Ramírez', grupoPrincipal: 'Danza Clásica', activo: true,
+    // id real cargado con backend/app/cargar_datos_reales.py (temporal — se
+    // resuelve solo cuando exista login; ver Claude.md).
+    id: '58634ac4-5069-40ce-9a86-f9beedb6c933', nombre: 'Sofía', apellido: 'Ramírez', grupoPrincipal: 'Danza Clásica', activo: true,
     telefono: '351-555-0000', email: 'familia.ramirez@example.com', domicilio: 'Barrio Observatorio, Córdoba',
     aptoFisicoPresentado: true, aptoFisicoFecha: '2026-04-15',
   },
@@ -17,14 +19,19 @@ export const alumnosVinculadosDemo = [
 
 export const configInstitucionalDemo = { plazoDiasAptoFisico: 365 }
 
+// pagos: [] en vez de metodo/comprobante sueltos en el cargo — mismo shape
+// que devuelve la API real (GET /alumnos/{id}/cargos). cargo:pago es
+// 1-a-muchos en el modelo real (un cargo parcial puede tener más de un
+// pago en el tiempo), el mock viejo con campos sueltos no podía
+// representar eso. Ver "Segunda conexión real" en Claude.md.
 export const cargosDemo = [
-  { id: 'c1', concepto: 'Cuota Septiembre 2026', periodo: '2026-09', monto_final: 32000, estado: 'pendiente', fecha_vencimiento: '2026-09-10' },
-  { id: 'c2', concepto: 'Cuota Agosto 2026', periodo: '2026-08', monto_final: 32000, estado: 'pagado', fecha_pago: '2026-08-08', metodo: 'mercadopago', comprobante: '2026-00047' },
-  { id: 'c3', concepto: 'Cuota Julio 2026', periodo: '2026-07', monto_final: 28000, estado: 'pagado', fecha_pago: '2026-07-09', metodo: 'transferencia', comprobante: '2026-00031' },
-  { id: 'c4', concepto: 'Matrícula Anual 2026', periodo: '2026-03', monto_final: 15000, estado: 'pagado', fecha_pago: '2026-03-01', metodo: 'efectivo', comprobante: '2026-00003' },
+  { id: 'c1', concepto: 'Cuota Septiembre 2026', periodo: '2026-09', monto_final: 32000, estado: 'pendiente', fecha_vencimiento: '2026-09-10', pagos: [] },
+  { id: 'c2', concepto: 'Cuota Agosto 2026', periodo: '2026-08', monto_final: 32000, estado: 'pagado', fecha_vencimiento: null, pagos: [{ fecha_pago: '2026-08-08', monto: 32000, metodo: 'mercadopago', comprobante_numero: '2026-00047' }] },
+  { id: 'c3', concepto: 'Cuota Julio 2026', periodo: '2026-07', monto_final: 28000, estado: 'pagado', fecha_vencimiento: null, pagos: [{ fecha_pago: '2026-07-09', monto: 28000, metodo: 'transferencia', comprobante_numero: '2026-00031' }] },
+  { id: 'c4', concepto: 'Matrícula Anual 2026', periodo: '2026-03', monto_final: 15000, estado: 'pagado', fecha_vencimiento: null, pagos: [{ fecha_pago: '2026-03-01', monto: 15000, metodo: 'efectivo', comprobante_numero: '2026-00003' }] },
   // casos para probar badges que el mockup no muestra — no pertenecen al relato de "Sofía", son solo de prueba visual
-  { id: 'c5', concepto: 'Cuota Junio 2026 (demo vencida)', periodo: '2026-06', monto_final: 28000, estado: 'pendiente', fecha_vencimiento: '2026-06-10' },
-  { id: 'c6', concepto: 'Cuota Mayo 2026 (demo parcial)', periodo: '2026-05', monto_final: 28000, estado: 'parcial', fecha_vencimiento: '2026-05-10' },
+  { id: 'c5', concepto: 'Cuota Junio 2026 (demo vencida)', periodo: '2026-06', monto_final: 28000, estado: 'pendiente', fecha_vencimiento: '2026-06-10', pagos: [] },
+  { id: 'c6', concepto: 'Cuota Mayo 2026 (demo parcial)', periodo: '2026-05', monto_final: 28000, estado: 'parcial', fecha_vencimiento: '2026-05-10', pagos: [{ fecha_pago: '2026-05-12', monto: 15000, metodo: 'transferencia', comprobante_numero: null }] },
 ]
 
 export const grupoAsistenciaDemo = { nombre: 'Danza Clásica' }

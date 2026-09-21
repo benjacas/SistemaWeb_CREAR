@@ -5,3 +5,10 @@ psycopg2-binary
 pydantic-settings
 python-dotenv
 alembic
+passlib[bcrypt]
+# passlib 1.7.4 (última versión, sin mantenimiento activo) rompe con
+# bcrypt>=4.1 — esa versión sacó el atributo `__about__` que passlib usa
+# para detectarla, y termina en un ValueError en vez de un fallback
+# prolijo. Fijado a una versión compatible conocida.
+bcrypt==4.0.1
+python-jose[cryptography]

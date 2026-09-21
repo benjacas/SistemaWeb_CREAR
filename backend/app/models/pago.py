@@ -2,6 +2,7 @@ import enum
 
 from sqlalchemy import Column, Text, Date, Numeric, ForeignKey, Enum, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -25,6 +26,9 @@ class Pago(Base):
     referencia_externa = Column(Text, nullable=True)
     comprobante_id = Column(UUID(as_uuid=True), ForeignKey("comprobante.id"), nullable=True)
     registrado_por = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=False)
+
+    cargo = relationship("Cargo", back_populates="pagos")
+    comprobante = relationship("Comprobante")
 
     __table_args__ = (
         CheckConstraint("fecha_pago <= CURRENT_DATE", name="pago_fecha_pago_check"),

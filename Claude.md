@@ -76,6 +76,8 @@ hace daño mostrarla).
 
 ```
 src/
+├── api/
+│   └── client.js                   # fetch al backend real: login, getMisAlumnos, getAsistencia, getCargos
 ├── components/
 │   └── layout/
 │       └── portal/
@@ -83,8 +85,12 @@ src/
 │           ├── PortalHeader.jsx    # Avatar (→ Perfil) + campanita notif.
 │           └── BottomNav.jsx       # Inicio/Pagos/Asistencia/Clases/Evaluaciones
 ├── context/
-│   └── AlumnoActivoContext.jsx     # NUEVO — ver arriba
+│   ├── AlumnoActivoContext.jsx     # alumno activo + lista de vinculados (real desde la Fase 3b)
+│   └── AuthContext.jsx             # NUEVO en la Fase 3b — token/rol/nombre, login()/logout()
+├── routes/
+│   └── RequireRole.jsx             # NUEVO en la Fase 3b — guard real de /portal (antes solo un comentario acá)
 ├── pages/
+│   ├── PortalLogin.jsx             # NUEVO en la Fase 3b — login de tutores, vive en pages/ (no pages/portal/)
 │   └── portal/
 │       ├── Home.jsx
 │       ├── Pagos.jsx
@@ -92,37 +98,52 @@ src/
 │       ├── Clases.jsx
 │       ├── Horarios.jsx            # calendario mensual + "Próximos" (antes vivía en Clases.jsx)
 │       ├── Evaluaciones.jsx
-│       ├── Perfil.jsx
+│       ├── Perfil.jsx              # el botón "Cerrar sesión" real vive acá
 │       ├── Notificaciones.jsx
-│       └── SeleccionarAlumno.jsx   # solo si hay +1 alumno vinculado
+│       └── SeleccionarAlumno.jsx   # NUEVO en la Fase 3b — solo se ve si hay +1 alumno vinculado
 ├── hooks/
 │   └── useCargos.js, useAsistencias.js, etc.  # un hook por recurso, ver patrón abajo
 ├── mock/
-│   └── fixtures.js                 # datos de ejemplo, misma forma que va a tener el futuro backend
-├── utils/
-│   └── format.js                   # funciones puras: formatMoneda, formatFecha,
-│                                      badgeEstadoCargo, esCargoVencido, calcularAlertas, etc.
-└── routes/
-    └── (se integra a las rutas existentes de mi compañera — ver abajo)
+│   └── fixtures.js                 # datos de ejemplo — Asistencia/Pagos ya no lo usan (Fase B9), otras páginas sí
+└── utils/
+    └── format.js                   # funciones puras: formatMoneda, formatFecha,
+                                       badgeEstadoCargo, esCargoVencido, calcularAlertas, etc.
 ```
 
 ## Backend (FastAPI + Postgres + Docker)
 
 Vive en `backend/`, separado del código de React de la raíz — es un
-proyecto Python aparte dentro del mismo repo, no un paquete de node. Nada
-del portal lo consume todavía (ver "Contexto" arriba).
+proyecto Python aparte dentro del mismo repo, no un paquete de node.
+**Actualización**: al principio nada del portal lo consumía (mockeaba
+todo), pero desde la Fase B7 las páginas Asistencia y Pagos ya hablan con
+la API real — ver "Conexiones reales" más abajo, no queda vigente la
+afirmación original de que "nada lo consume todavía".
 
 ```
 backend/
 ├── app/
-│   ├── main.py              # instancia FastAPI, incluye routers
-│   ├── core/config.py        # Settings (pydantic-settings) — lee DATABASE_URL etc. de env
+│   ├── main.py              # instancia FastAPI, CORS, incluye routers
+│   ├── core/
+│   │   ├── config.py          # Settings (pydantic-settings) — lee DATABASE_URL, SECRET_KEY, etc. de env
+│   │   ├── security.py        # hash/verificación de password (bcrypt), crear/decodificar JWT
+│   │   └── deps.py            # obtener_identidad_actual (dependencia de auth), verificar_acceso_a_alumno
 │   ├── db/
 │   │   ├── base.py            # Base declarativo de SQLAlchemy
 │   │   └── session.py         # engine + SessionLocal + get_db()
 │   ├── models/                # un archivo por tabla, ver backend/SCHEMA.md
-│   └── routers/
-│       └── health.py          # GET /health
+│   ├── schemas/               # modelos Pydantic de respuesta, uno por recurso
+│   ├── routers/
+│   │   ├── health.py          # GET /health
+│   │   ├── auth.py            # POST /login
+│   │   ├── tutores.py         # GET/PATCH /tutores/me, GET /tutores/me/alumnos — requiere login
+│   │   ├── asistencia.py      # GET /alumnos/{alumno_id}/asistencia — requiere login + vínculo con el alumno
+│   │   ├── cargos.py          # GET /alumnos/{alumno_id}/cargos — requiere login + vínculo con el alumno
+│   │   ├── clases.py          # GET /alumnos/{alumno_id}/clases — requiere login + vínculo con el alumno
+│   │   ├── evaluaciones.py    # GET /alumnos/{alumno_id}/evaluaciones — requiere login + vínculo con el alumno
+│   │   └── configuracion.py   # GET /configuracion — requiere login, nunca expone mp_access_token/kapso_api_key
+│   ├── gestion_datos.py       # funciones reutilizables de alta (usuario, disciplina, grupo, alumno, inscripción, tutor, asistencia, cargo, pago, horario de clase, criterio, examen, calificación, configuración inicial, password)
+│   ├── cargar_datos_reales.py # altas reales — editable, no idempotente, python -m app.cargar_datos_reales
+│   └── asignar_passwords_prueba.py # uso único — contraseñas de desarrollo a los tutores de prueba
 ├── alembic/                  # migraciones — env.py lee DATABASE_URL de app.core.config
 ├── requirements.txt
 ├── Dockerfile
@@ -136,9 +157,24 @@ backend/
 ```bash
 cd backend
 cp .env.example .env   # ajustar si hace falta — .env nunca se commitea (gitignored en la raíz)
+# generar un SECRET_KEY real (no dejar el placeholder del .env.example):
+python3 -c "import secrets; print(secrets.token_hex(32))"   # pegar el resultado en .env
 docker compose up --build
 curl localhost:8000/health   # → {"status": "ok"}
 ```
+
+**Ojo con `SECRET_KEY` (y cualquier variable nueva de `.env`) en Docker**:
+`.env` está en `.dockerignore` (nunca se copia a la imagen) — pydantic-settings
+lee `.env` cuando corrés la app directo en el host, pero dentro del
+contenedor la única forma de que la variable llegue es que
+`docker-compose.yml` la pase explícitamente en `environment:` (docker
+compose sí lee el `.env` del host para resolver `${SECRET_KEY}` ahí, son
+dos mecanismos de lectura de `.env` distintos y solo uno aplica dentro
+del contenedor). Si agregás una variable nueva a `Settings` en
+`core/config.py`, agregala también a `environment:` del servicio `api`
+en `docker-compose.yml` o el contenedor arranca con
+`pydantic_core.ValidationError: Field required` aunque el `.env` del
+host esté perfecto — pasó probando esta fase.
 
 Para aplicar el schema contra una base nueva (ya viene aplicado si cloná
 después de la Fase 2, pero por las dudas):
@@ -147,6 +183,68 @@ después de la Fase 2, pero por las dudas):
 docker compose exec api alembic upgrade head
 docker compose exec db psql -U crear -d crear_db -c '\dt'   # deberían aparecer 28 filas (27 tablas + alembic_version)
 ```
+
+Con la base recién creada no hay ningún alumno todavía — Asistencia y
+Pagos en el portal van a mostrar el estado de error hasta que exista al
+menos uno (ver "Conexiones reales", más abajo, no tienen fallback a mock).
+Para dar de alta gente real:
+
+```bash
+docker compose exec api python -m app.cargar_datos_reales
+```
+
+Edita `backend/app/cargar_datos_reales.py` a mano y agregá las líneas de
+la persona nueva antes de correrlo — no es idempotente a propósito, cada
+corrida son altas reales, no un reset (ver "Conexiones reales").
+
+### Datos de prueba disponibles
+
+Lo que deja cargado `backend/app/cargar_datos_reales.py` tal como está en
+el repo ahora mismo (Fase B10) — pensado para tener casos variados a mano
+cuando se arme login/roles, sin tener que ir a mirar la base:
+
+| Tutor | Password | Parentesco | Alumna | DNI | Perfil |
+|---|---|---|---|---|---|
+| Marcela Gómez (`marcela.gomez@example.com`) | `prueba123` | madre | Sofía Ramírez | 45123456 | Caso simple: 1 sola alumna vinculada (sin selector). Asistencia 6/6 (100%). Cuota Septiembre **pagada** (Mercado Pago). 1 sola clase: Danza Clásica. Examen Final 2026: **8.7** (Expresión 9, Ritmo 8, Técnica 9). Apto físico **vigente** (presentado 2026-09-05). |
+| Diego Torres (`diego.torres@example.com`) | `prueba123` | padre | Valentina Torres | 45789012 | Una de 2 hermanas (prueba el selector "Mis Alumnas"). Asistencia 3/6 (50%, por debajo del umbral). Cuota Agosto **pendiente y vencida** (venció 2026-08-10). **2 clases**: Danza Clásica + Jazz (única con más de una, para que el calendario de Horarios se note distinto). Sin calificaciones todavía (no rindió el Examen Final). Apto físico **no presentado** todavía. |
+| Diego Torres (`diego.torres@example.com`) | `prueba123` | padre | Martina Torres | 45789013 | La otra hermana. Asistencia 5/6 (83%). Cuota Septiembre **parcial** (pagó $15.000 de $32.000, transferencia). 1 sola clase: Danza Clásica. Mismo Examen Final 2026 que Sofía, nota distinta: **7.0** (Expresión 7, Ritmo 6.5, Técnica 7.5). Apto físico **vencido** (presentado 2026-06-01, venció antes de hoy). |
+
+**⚠️ `prueba123` es una contraseña de desarrollo, nunca la que se usaría
+en un despliegue real.** La ponen ambas cuentas (Marcela y Diego) a
+propósito, para no tener que recordar dos contraseñas distintas mientras
+se prueba. Se asigna corriendo (una sola vez, después de
+`cargar_datos_reales.py`):
+
+```bash
+docker compose exec api python -m app.asignar_passwords_prueba
+```
+
+Ni Sofía, Valentina ni Martina (las alumnas) tienen login propio ni
+`password_hash` — en este sistema el login es de `usuario` (staff) o
+`padre_tutor` (tutor), nunca del alumno directamente; ver "Fase 3a" más
+abajo y `app/routers/auth.py`.
+
+Los `id` (UUID) de cada fila son `gen_random_uuid()` — cambian cada vez
+que se recrea la base, no están fijos en este documento. Para consultarlos:
+
+```sql
+SELECT pt.nombre || ' ' || pt.apellido AS tutor, a.nombre || ' ' || a.apellido AS alumna, a.dni
+FROM padre_tutor pt
+JOIN alumno_tutor at ON at.padre_tutor_id = pt.id
+JOIN alumno a ON a.id = at.alumno_id
+ORDER BY tutor, alumna;
+```
+
+Todas comparten la misma profesora (Lorena Cosanelli,
+`lorena@crear.com`). Hay 2 `grupo_clase` (desde la Fase B11): **Danza
+Clásica** (Intermedio, lunes y miércoles 18:00–19:30, **de profesorado**
+— es la única con evaluaciones formales, ver Fase B12) y **Jazz**
+(Inicial, viernes 17:00–18:00, recreativa, sin evaluaciones) — la
+variedad está en el historial de asistencia/cargos de cada alumna, en a
+qué clases está inscripta, y ahora también en sus notas del Examen Final
+2026 (ver tabla arriba). Desde la Fase 3a, Marcela y Diego ya tienen
+`password_hash` (ver arriba); la profesora y las 3 alumnas no tienen
+login (no lo necesitan — ver "Decisión de auth" más abajo).
 
 **Nota de zona horaria/entorno:** si `docker compose up` falla con
 `port is already allocated` en el 5432, es porque ya hay otro Postgres
@@ -161,15 +259,23 @@ afecta para nada. El archivo commiteado usa `5432:5432`, el mapeo estándar.
 ### Decisión de auth: `password_hash` por tabla, sin `auth_user_id`
 
 `usuario` y `padre_tutor` tienen su propio `password_hash` (columna
-NULLABLE, se completa recién en la Fase 3) en vez de un `auth_user_id`
-apuntando a un proveedor externo tipo Supabase Auth — que es justo lo que
-la cátedra pidió reemplazar (ver "Contexto" arriba). El login real (JWT +
-hashing) es una fase futura; `passlib`/`python-jose` todavía no están en
-`requirements.txt` a propósito, se suman cuando llegue esa fase.
+NULLABLE — se completa cuando esa identidad puntual tiene login asignado,
+no todas lo tienen; ver "Datos de prueba disponibles" arriba) en vez de
+un `auth_user_id` apuntando a un proveedor externo tipo Supabase Auth —
+que es justo lo que la cátedra pidió reemplazar (ver "Contexto" arriba).
 **Confirmado en la Fase B6 contra `schema_original_supabase.sql`**: la
 columna `auth_user_id` sí existe ahí (FK a `auth.users`), la decisión de
 no portarla es explícita, no un olvido — documentado en el modelo mismo
 para que no se "redescubra" como faltante.
+
+**✅ Login real implementado en la Fase 3a** (`passlib[bcrypt]` +
+`python-jose[cryptography]`, agregados a `requirements.txt` en esa fase):
+`POST /login` verifica contra `usuario.password_hash` o
+`padre_tutor.password_hash` (ese orden) y devuelve un JWT. Ver la entrada
+de esa fase en "Estado de avance" para el detalle completo — decisiones
+de diseño (JWT simple sin refresh token, un solo `SECRET_KEY`), el rol
+del identity payload (`tipo`: `"usuario"` vs `"padre_tutor"`, distinto de
+`rol`), y el gotcha de `passlib`/`bcrypt` que hizo falta resolver.
 
 **✅ Resuelto en la Fase B3** (encontrado probando la Fase B2 a mano, corregido
 después). Los defaults de los campos `Enum` de SQLAlchemy (ej.
@@ -185,15 +291,15 @@ app real va a escribir), pero un `INSERT` de SQL crudo sin especificar
 
 **✅ Auditado en el resto de las columnas en la Fase B4** (no solo
 enums) — encontró 2 columnas `Boolean` más con el mismo problema
-(`alumno.autorizacion_imagen`, `alumno.apto_fisico_presentado`) y, aparte,
-2 columnas con un default de más que nunca debió estar
-(`disciplina.tiene_profesorado`, `grupo_clase.es_profesorado` — no
-tenían default en el schema original, se les había puesto `default=False`
-de más en la Fase B2; se sacó el default por completo, no se convirtió).
-Ver **"`default=` vs `server_default` — auditado en las 27 tablas"** en
-`backend/SCHEMA.md` para la explicación completa, la lista de las 10
-columnas corregidas entre las dos fases, y la regla a seguir en cualquier
-tabla nueva de acá en adelante.
+(`alumno.autorizacion_imagen`, `alumno.apto_fisico_presentado`). La Fase
+B4 también sacó el default de `disciplina.tiene_profesorado` y
+`grupo_clase.es_profesorado` asumiendo que el original no lo tenía —
+**esto era incorrecto, corregido en la Fase B6** al auditar mecánicamente
+contra `schema_original_supabase.sql`: ambas columnas sí tienen
+`DEFAULT false` en el original, se les devolvió como
+`server_default=text("false")`. Ver **"`default=` vs `server_default` —
+auditado en las 27 tablas"** en `backend/SCHEMA.md` para la explicación
+completa y la regla a seguir en cualquier tabla nueva de acá en adelante.
 
 ### Schema completo: `backend/SCHEMA.md`
 
@@ -1094,6 +1200,683 @@ validar con la compañera antes de tocar Postgres.
     "Este documento se valida contra `schema_original_supabase.sql`, no
     de memoria — ante cualquier duda futura, comparar contra ese archivo,
     no contra una descripción de él."
+- ✅ **Fase B7 — Primera conexión real: Asistencia de punta a punta**
+  (completada). Primera vez que el portal habla con el backend de
+  verdad en vez de usar mocks — todo lo anterior (B1-B6) construyó el
+  backend pero nada del frontend lo consumía todavía.
+  - **CORS**: `CORSMiddleware` agregado en `app/main.py`, permite el
+    origin `http://localhost:5173` (Vite). Sin esto el navegador
+    bloquea la llamada aunque el backend responda bien.
+  - **`relationship()` agregados por primera vez** en los modelos —
+    hasta ahora todas las FK eran `Column(..., ForeignKey(...))` crudas,
+    sin forma de navegar `objeto.relacion` sin escribir un join manual
+    en cada query. Se agregaron las 3 mínimas necesarias para este
+    endpoint, unidireccionales (sin `back_populates`, no hacían falta):
+    `Asistencia.inscripcion`, `Inscripcion.grupo_clase`,
+    `GrupoClase.disciplina`. Cualquier endpoint nuevo que necesite
+    navegar otras relaciones las va a necesitar agregar también — no
+    existen todavía en el resto de los modelos.
+  - **Script de datos de prueba de esta fase** (idempotente — busca por
+    clave natural antes de insertar — email, `nombre` de disciplina, combo
+    disciplina+profesora, `dni`, combo alumno+grupo, combo
+    inscripción+fecha — así se podía correr de nuevo sin duplicar) creó
+    una profesora, la disciplina "Danza Clásica", un `grupo_clase`, la
+    alumna Sofía Ramírez (mismo nombre que la persona del mock, para
+    poder comparar visualmente) con una inscripción y 6 registros de
+    asistencia (5 presente / 1 ausente, mismo patrón que
+    `asistenciasDemo`). Las fechas usadas fueron
+    `2026-09-01/03/08/10/15(ausente)/17` — no `2026-09-22` como el mock
+    de septiembre, porque esa fecha cae después de "hoy" en este
+    entorno y el `CHECK asistencia_fecha_check` (`fecha <= CURRENT_DATE`)
+    la hubiera rechazado. **Este script se eliminó en la Fase B9**,
+    reemplazado por `gestion_datos.py`/`cargar_datos_reales.py` — ver esa
+    fase más abajo para el mecanismo vigente de carga de datos.
+  - **`GET /alumnos/{alumno_id}/asistencia`** (`app/routers/asistencia.py`
+    + `app/schemas/asistencia.py`) — en esta fase quedó **⚠️ TEMPORAL,
+    sin auth**: no verificaba que quien preguntaba tuviera derecho a ver
+    esos datos, cualquier UUID válido servía. **Reemplazado por
+    autorización real en la Fase 3a** — ver esa fase más abajo.
+  - **Frontend**: `src/api/client.js` nuevo (`getAsistencia`, lee
+    `VITE_API_URL`, default `http://localhost:8000`). `useAsistencias`
+    intentaba la llamada real primero y caía al mock (`asistenciasDemo`)
+    si fallaba, mismo espíritu que el patrón `conFallback` del proyecto
+    viejo — ver "Patrón de datos" más abajo, que sigue vigente como
+    estructura para el resto de los hooks. **Este fallback a mock se
+    sacó en la Fase B9** para `useAsistencias`/`useCargos` específicamente
+    (ver esa fase): ahora si la llamada real falla, se propaga el error
+    y la página lo muestra, no cae más a datos de prueba en silencio.
+  - **UUID hardcodeado temporalmente**: como `AlumnoActivoContext`
+    todavía arranca desde `alumnosVinculadosDemo` (no hay login), el
+    `id` de Sofía en `src/mock/fixtures.js` se reemplaza a mano por el
+    UUID real que imprime por consola el mecanismo de carga de datos de
+    turno (`gen_random_uuid()`, así que cambia cada vez que se recrea la
+    base — no lo tomes literal de este documento, correlo y usá el que
+    te imprima a vos) para que el alumno activo del mock apunte a una
+    fila que sí existe en la base. Esto se resuelve solo cuando exista
+    login real y el `id` venga de la sesión, no de un mock.
+  - **Verificado con Playwright** (Chromium headless): con el backend
+    arriba, `/portal/asistencia` mostraba los 6 registros reales (83% =
+    5/6, fechas y estado "Ausente" del 15/09 coincidiendo con los datos
+    de prueba cargados, sin el warning `[modo demo]` en consola). Con
+    `docker compose stop api`, la misma página caía al mock sin
+    romperse — aparecía el tab "Agosto de 2026" y la fecha 22/09 (que
+    solo existen en `asistenciasDemo`) y sí aparecía el warning
+    `[modo demo] asistencia real falló, usando mock` en consola. Los dos
+    sentidos se confirmaron antes de dar la tarea por terminada en su
+    momento — **este comportamiento de fallback ya no existe desde la
+    Fase B9**, queda descripto acá solo como historia de esta fase.
+  - `.env.example` nuevo en la raíz del frontend, con `VITE_API_URL`.
+- ✅ **Fase B8 — Segunda conexión real: Pagos de punta a punta** (completada).
+  - **Cambio de forma mock↔real hecho a propósito**: `cargosDemo` tenía
+    `metodo`/`comprobante` como campos sueltos directo en el cargo (un
+    solo pago posible), pero `pago` es una tabla aparte 1-a-muchos hacia
+    `cargo` (un cargo `parcial` puede tener más de un pago en el
+    tiempo) — el mock viejo no podía representarlo. Se corrigió de una:
+    la API devuelve `pagos` como array (`CargoOut.pagos: list[PagoOut]`)
+    y `cargosDemo` se ajustó a la misma forma, así front y backend
+    hablan el mismo idioma desde el principio en vez de arrastrar el
+    desajuste hasta que doliera.
+  - **`relationship()` nuevos**: `Cargo.concepto_cobro`,
+    `Cargo.pagos` (con `back_populates="cargo"` desde `Pago.cargo` —
+    primera vez que se usa `back_populates` en el proyecto, hacía falta
+    porque acá sí se navega en las dos direcciones: `cargo.pagos` en el
+    router, y potencialmente `pago.cargo` a futuro) y
+    `Pago.comprobante`. Mismo criterio que en la Fase B7: solo lo que
+    el endpoint necesita, no un repaso general de las 27 tablas.
+  - **Script de datos de prueba extendido** (mismo script de la Fase
+    B7, no uno nuevo — luego eliminado en la Fase B9): agregó 2
+    `concepto_cobro` ("Cuota mensual", "Matrícula Anual") y 4 `cargo`
+    para el mismo alumno de la Fase B7, cubriendo los 3 estados reales
+    del enum `EstadoCargo` (`pago_en_revision` es el cuarto,
+    `NUEVO`/propuesto, no usado acá): Septiembre `pendiente` (vencimiento
+    a futuro cercano), Agosto `pagado` (pago Mercado Pago + comprobante
+    2026-00047), Matrícula `pagado` (pago efectivo + comprobante
+    2026-00003), Julio `parcial` (un pago por menos del `monto_final`,
+    sin comprobante). Reutilizaba la profesora de la Fase B7 para
+    `generado_por`/`registrado_por`/`emitido_por` — no creaba un usuario
+    nuevo sin necesidad. Idempotente con el mismo criterio que el resto
+    del script (clave natural por entidad: nombre de concepto, combo
+    alumno+concepto+periodo para el cargo, `cargo_id` para el pago,
+    combo numero+año para el comprobante).
+  - **`GET /alumnos/{alumno_id}/cargos`** (`app/routers/cargos.py` +
+    `app/schemas/cargo.py`) — en esta fase quedó **⚠️ TEMPORAL, sin
+    auth**, mismo criterio que `/alumnos/{id}/asistencia` (Fase B7):
+    cualquier UUID válido servía, no verificaba pertenencia.
+    **Reemplazado por autorización real en la Fase 3a.**
+  - **Frontend**: `getCargos` en `src/api/client.js`; `useCargos` con el
+    mismo patrón intento-real-con-fallback que `useAsistencias` tenía en
+    ese momento (**fallback sacado en la Fase B9**, ver esa fase).
+    `Pagos.jsx` y `ComprobanteModal.jsx` dejaron de leer
+    `cargo.metodo`/`cargo.fecha_pago`/`cargo.comprobante` directo y pasan
+    a usar el pago más reciente vía el helper nuevo `ultimoPago(cargo)`
+    en `utils/format.js`.
+  - **⚠️ Límite conocido, dejado anotado a propósito (no resuelto en
+    esta fase, sigue sin resolverse)**: tanto el historial de
+    `Pagos.jsx` como `ComprobanteModal` muestran únicamente
+    `ultimoPago(cargo)` (el pago más reciente), no la lista completa.
+    Alcanza mientras cada cargo tenga 0 o 1 pago en la práctica, pero el
+    día que un cargo `parcial` acumule 2+ pagos reales, `ComprobanteModal`
+    va a necesitar poder listarlos todos en vez de mostrar solo uno —
+    documentado con un comentario en el código (`utils/format.js` y
+    `ComprobanteModal.jsx`) además de acá.
+  - **Verificado con Playwright**: con el backend arriba, `/portal/pagos`
+    mostraba los 4 cargos reales (1 pendiente, 2 pagados con su N.º de
+    comprobante correcto en el modal, 1 parcial), sin `Cuota Junio 2026`
+    (dato que solo existe en el mock) y sin el warning `[modo demo]`.
+    Con `docker compose stop api`, la misma página caía a `cargosDemo`
+    sin romperse — aparecía `Cuota Junio 2026 (demo vencida)` y el
+    warning `[modo demo] cargos real falló, usando mock` en consola.
+    **Este comportamiento de fallback ya no existe desde la Fase B9.**
+- ✅ **Fase B9 — Script de carga de datos reales + sacar el fallback a
+  mock en Asistencia y Pagos** (completada).
+  - **`backend/app/seed.py` eliminado.** Reemplazado por dos archivos
+    con responsabilidades separadas:
+    - **`backend/app/gestion_datos.py`**: funciones reutilizables, una
+      por entidad (`crear_usuario`, `crear_disciplina`,
+      `crear_grupo_clase`, `crear_alumno`, `inscribir`), cada una hace
+      un `add`+`commit`+`refresh` y devuelve el objeto con su id real ya
+      generado — así se encadena sin copiar UUIDs a mano
+      (`crear_grupo_clase(db, disciplina.id, ...)`). No es un script de
+      una corrida, es una librería chiquita.
+    - **`backend/app/cargar_datos_reales.py`**: el archivo editable
+      donde se escriben las altas reales, usando las funciones de
+      `gestion_datos.py`. A diferencia de `seed.py`, **no es
+      idempotente a propósito** — cada corrida son altas reales (gente
+      nueva), no un reset de datos de prueba. Se corre con
+      `docker compose exec api python -m app.cargar_datos_reales` cada
+      vez que hay que agregar a alguien; se edita el archivo primero.
+  - **Gotcha encontrado probando**: si se imprime `objeto.id` de un
+    objeto creado por una función de `gestion_datos.py` *después* de que
+    otra función posterior haga su propio `db.commit()` en la misma
+    sesión, SQLAlchemy expira el objeto (`expire_on_commit=True` es el
+    default) y el acceso dispara un refresh silencioso contra la base —
+    funciona mientras la sesión siga abierta, pero **revienta con
+    `DetachedInstanceError` si ya se llamó a `db.close()`**. Pasó en la
+    primera corrida de prueba: el `print(alumna1.id)` estaba después de
+    `db.close()`. Corregido moviendo el print antes del `close()`. Ojo
+    con este patrón en cualquier script futuro que imprima ids después
+    de varios `commit()` encadenados.
+  - **No hace falta convertir el `rol` a enum de Python a mano**:
+    `crear_usuario(db, ..., rol="profesor")` con un string plano
+    (no `RolUsuario.profesor`) funciona bien contra la columna
+    `Enum(RolUsuario)` — confirmado corriendo el script tal cual se
+    pidió, sin adaptar esa parte.
+  - **Fallback a mock sacado de `useAsistencias`/`useCargos`**
+    (`hooks/useAsistencias.js`, `hooks/useCargos.js`): ya no importan
+    `asistenciasDemo`/`cargosDemo`. Ahora devuelven `{ datos, cargando,
+    error }` — si la llamada real falla, `error` queda seteado y no se
+    intenta ningún mock. `Asistencia.jsx` y `Pagos.jsx` muestran un
+    estado de error simple (`EmptyState` con ícono `AlertTriangle`) en
+    vez de datos de prueba silenciosos.
+  - **⚠️ Cambio de comportamiento real, a propósito**: si el backend
+    está caído, Asistencia y Pagos ahora se rompen (muestran error) en
+    vez de caer elegante al mock como en las Fases B7/B8. Es lo que se
+    pidió. Si en algún momento estorba para seguir desarrollando el
+    resto del portal con el backend apagado, se puede volver a agregar
+    el fallback **solo para desarrollo** — no se agregó preventivamente
+    acá porque se pidió sacarlo.
+  - **Verificado en el navegador**: se cargó una alumna real (Sofía
+    Ramírez, mismos datos que las fases anteriores para no perder
+    continuidad, vía `cargar_datos_reales.py`) sin ningún registro de
+    asistencia ni cargo todavía — es una alta real recién hecha, no
+    tiene historial. Con el backend arriba, `/portal/asistencia` y
+    `/portal/pagos` muestran el estado vacío real (0%, "$0 / al día")
+    sin ningún dato de `asistenciasDemo`/`cargosDemo` ni el warning
+    `[modo demo]` (ya no existe ese código). Con `docker compose stop
+    api`, las dos páginas muestran el estado de error nuevo en vez de
+    romperse con una pantalla en blanco o un mock silencioso.
+  - `AlumnoActivoContext`/`alumnosVinculadosDemo` (el mock del alumno
+    activo, no las listas de asistencia/cargos) sigue existiendo sin
+    cambios — sigue siendo el mecanismo temporal para simular "qué
+    alumno está logueado" hasta que exista login real; no forma parte
+    de lo que esta fase pidió sacar.
+- ✅ **Fase B10 — Cargar varios alumnos + tutores para probar login y
+  roles** (completada).
+  - **`gestion_datos.py` extendido** con 7 funciones más, mismo criterio
+    de siempre (una por entidad, devuelve el objeto guardado con su id
+    real): `crear_padre_tutor`, `vincular_tutor_alumno` (pedidas en esta
+    fase) y, además, `crear_concepto_cobro`, `registrar_asistencia`,
+    `crear_cargo`, `crear_comprobante`, `registrar_pago` — **no estaban
+    en el pedido original, se agregaron porque hacían falta**: sin ellas
+    no había forma de darle a cada alumna un historial de
+    asistencia/cargos distinto (que sí era un requisito explícito de la
+    fase), y ya existía el mismo patrón hecho a mano en el `seed.py` que
+    se eliminó en la Fase B9 — acá simplemente se llevó ese mismo código
+    a `gestion_datos.py` como funciones reutilizables en vez de lógica
+    de un solo script.
+  - **`cargar_datos_reales.py` reescrito** con 3 alumnas repartidas en 2
+    tutores, cada una con un perfil de asistencia/cargos distinto a
+    propósito — ver la tabla completa en "Datos de prueba disponibles"
+    (arriba, dentro de "Backend"). En resumen: Tutor A con 1 sola alumna
+    (caso simple, sin selector) al día con todo; Tutor B con 2 alumnas
+    (prueba el selector "Mis Alumnas"), una con asistencia baja y cuota
+    vencida, la otra con asistencia buena pero cuota parcial — así
+    cuando exista login, cambiar de tutor/alumna va a mostrar
+    información realmente distinta en Asistencia y Pagos, no la misma
+    pantalla con otro nombre.
+  - **Verificado con un `SELECT` que junta `padre_tutor` + `alumno_tutor`
+    + `alumno`** (via `docker compose exec db psql`) antes de dar la
+    carga por buena — confirmó los 3 vínculos armados correctamente. Se
+    verificaron además los dos endpoints (`/asistencia`, `/cargos`) por
+    `curl` para las 3 alumnas, confirmando que cada una devuelve
+    exactamente el % de asistencia y el estado de cargo pensado (Sofía
+    6/6 y pagado; Valentina 3/6 y vencido; Martina 5/6 y parcial).
+  - Sin verificación en el navegador en esta fase — no hay todavía forma
+    de elegir tutor/alumno desde la UI (`AlumnoActivoContext` sigue
+    hardcodeado a un solo mock), así que no hay nada que un
+    Playwright pudiera ejercitar todavía; esto se retoma cuando exista
+    login real.
+- ✅ **Fase 3a — Login, JWT y roles (backend)** (completada). Primer login
+  real del proyecto — hasta acá, `/alumnos/{id}/asistencia` y
+  `/alumnos/{id}/cargos` aceptaban cualquier UUID sin verificar nada.
+  - **Paso 0, antes de tocar nada**: se confirmó contra la base real
+    (`SELECT unnest(enum_range(NULL::rol_usuario))`) que el enum
+    `rol_usuario` tiene 5 valores:
+    `administrador/secretaria/profesor/alumno/tutor`. **`alumno` y
+    `tutor` son valores de más, sin uso** — el rol de una identidad no
+    sale de esa columna para esos dos casos: se determina por en qué
+    tabla se la encontró (`usuario` → su `rol` real, que en la práctica
+    es administrador/secretaria/profesor; `padre_tutor` → `"tutor"`
+    fijo, ni siquiera es una columna). No se migró el enum para sacar
+    esos 2 valores — alcanza con no usarlos — pero quedó anotado en
+    `backend/SCHEMA.md` como limpieza pendiente para una migración
+    futura.
+  - **`app/core/security.py`** (nuevo): `hash_password`/`verificar_password`
+    con `passlib[bcrypt]`, `crear_token`/`decodificar_token` con
+    `python-jose`. **Simplificación consciente**: un solo access token
+    de 24hs, sin refresh token — implementar rotación de refresh tokens
+    es un esfuerzo aparte que no aporta valor proporcional al alcance de
+    este proyecto.
+  - **`SECRET_KEY` nuevo en `Settings`** (`core/config.py`, minúscula
+    como el resto de los campos — el código dado usaba `SECRET_KEY` en
+    mayúscula, se adaptó a la convención del archivo). Agregado a
+    `.env`/`.env.example`. **Gotcha real encontrado probando**: `.env`
+    está en `.dockerignore`, así que el `env_file=".env"` que lee
+    pydantic-settings dentro del contenedor no encuentra nada — hace
+    falta además pasar la variable por `environment:` en
+    `docker-compose.yml` (docker compose sí lee el `.env` del host para
+    resolver `${SECRET_KEY}` ahí, es un mecanismo aparte). Sin ese paso,
+    el contenedor no arrancaba (`pydantic_core.ValidationError: Field
+    required`) aunque el `.env` estuviera bien. Documentado en "Cómo
+    levantarlo" arriba para no repetir el error con la próxima variable
+    nueva.
+  - **Gotcha de dependencias, encontrado probando**: `passlib==1.7.4`
+    (última versión, sin mantenimiento activo) es incompatible con
+    `bcrypt>=4.1` — esa versión sacó el atributo `__about__` que
+    `passlib` usa para detectar la versión instalada, y en vez de un
+    fallback prolijo termina en un `ValueError` bastante confuso
+    (`password cannot be longer than 72 bytes`, que no tiene nada que
+    ver con la causa real). Se fijó `bcrypt==4.0.1` en
+    `requirements.txt`, con el porqué comentado ahí mismo.
+  - **`gestion_datos.py` extendido** con `establecer_password(db, modelo,
+    id, password_plano)` — genérica para `Usuario` o `PadreTutor`, mismo
+    criterio de siempre. **`app/asignar_passwords_prueba.py`** (nuevo,
+    uso único, no idempotente a propósito — no se corre de nuevo salvo
+    que se quiera resetear estas contraseñas): le pone `prueba123` a
+    Marcela y Diego. Ver la tabla en "Datos de prueba disponibles" con
+    la advertencia de que es una contraseña de desarrollo, no una real.
+  - **`POST /login`** (`app/routers/auth.py` + `app/schemas/auth.py`):
+    busca primero en `usuario` por email, después en `padre_tutor` — el
+    primero que matchea con password correcto gana. El JWT lleva `sub`
+    (id), `rol` (el real de `usuario.rol.value`, o `"tutor"` fijo si es
+    `padre_tutor`) y `tipo` (`"usuario"` vs `"padre_tutor"` — distinto
+    de `rol`, es lo que dice en qué tabla vive la identidad, necesario
+    para saber qué verificar en la autorización).
+  - **`app/core/deps.py`** (nuevo): `obtener_identidad_actual` decodifica
+    el JWT del header `Authorization: Bearer ...` (vía
+    `OAuth2PasswordBearer`) y devuelve `{id, rol, tipo}`; token
+    inválido/vencido → 401. `verificar_acceso_a_alumno` — si `tipo` es
+    `"usuario"` (staff) pasa sin restricción (no es el alcance de esta
+    fase); si es `"padre_tutor"`, exige que exista una fila en
+    `alumno_tutor` que vincule a ese tutor con ese alumno, si no 403.
+  - **`GET /tutores/me/alumnos`** (`app/routers/tutores.py`, nuevo):
+    devuelve los alumnos vinculados al tutor autenticado — lo que el
+    front va a usar para armar el selector "Mis Alumnas" con datos
+    reales en la Fase 3b. Necesitó agregar `AlumnoTutor.alumno =
+    relationship("Alumno")` en el modelo (no existía, solo había FK
+    cruda) para poder navegar `v.alumno.nombre` como pedía el código
+    dado.
+  - **`/alumnos/{id}/asistencia` y `/alumnos/{id}/cargos` dejaron de ser
+    "TEMPORAL, sin auth"**: ahora piden `identidad: dict =
+    Depends(obtener_identidad_actual)` y llaman a
+    `verificar_acceso_a_alumno` al principio. El comentario `TEMPORAL`
+    se sacó del código de los dos routers.
+  - **Verificado con `curl`, la prueba que importa de verdad**: login de
+    Diego (`prueba123`) → token; `GET /tutores/me/alumnos` con ese token
+    → devuelve exactamente a Valentina y Martina; `GET
+    /alumnos/{id_de_sofía}/asistencia` con el token de Diego → **403**
+    (Sofía es hija de Marcela, no de Diego — esto confirma que la
+    autorización filtra de verdad, no solo que el login funciona);
+    mismo alumno con su propio token de Diego (Valentina) → 200 con los
+    datos reales; sin token → 401; login con password incorrecta → 401.
+    Los 6 casos confirmados antes de dar la fase por terminada.
+- ✅ **Fase 3b — Login real, token y selector de alumno (frontend)**
+  (completada). Primera vez que el portal usa el login real de la Fase 3a
+  en vez de arrancar directo con el mock.
+  - **`context/AuthContext.jsx`** (nuevo): `token`/`rol`/`nombre` en
+    estado + `localStorage` (`crear_token`/`crear_rol`/`crear_nombre`).
+    **Decisión documentada, no el estándar de oro**: `localStorage` en
+    vez de una cookie httpOnly — más simple (la cookie httpOnly necesita
+    configuración extra de CORS/`SameSite`/dominio compartido del lado
+    del backend), pero legible por cualquier script que corra en la
+    página, a diferencia de la cookie. Razonable para el alcance de este
+    proyecto (una app de facultad, no un sistema bancario) — si en algún
+    momento hace falta más rigor contra XSS, revisar esta decisión.
+  - **Ajuste de arquitectura de rutas, no pedido explícitamente pero
+    necesario para que el flujo funcione**: `AlumnoActivoProvider` pasó
+    de envolver solo `/portal` a envolver un grupo de rutas compartido
+    (`/portal-login`, `/seleccionar-alumno` y `/portal`, ver `App.jsx`).
+    Motivo: `PortalLogin` necesita el `setAlumnosVinculados` de ese
+    contexto para guardar la respuesta de `/tutores/me/alumnos` *antes*
+    de navegar a `/portal` — si el provider solo envolviera `/portal`,
+    se hubiera remontado con el mock de cero al entrar y perdido los
+    datos reales que el login acababa de cargar.
+  - **`api/client.js`**: `login`/`getMisAlumnos` nuevos; `getAsistencia`/
+    `getCargos` ahora piden `token` y mandan
+    `Authorization: Bearer ...` — dejó de ser opcional: el backend exige
+    el token desde la Fase 3a, así que sin este cambio esas dos pantallas
+    hubieran empezado a fallar con 401. El token se lo pasan
+    `useAsistencias`/`useCargos` leyendo `AuthContext` internamente (no
+    hizo falta tocar `Asistencia.jsx`/`Pagos.jsx`/`Home.jsx`, que ya le
+    pasaban el `alumnoId` al hook sin saber nada de auth).
+  - **`pages/PortalLogin.jsx`** (nuevo): formulario simple, llama
+    `login()` del contexto. Si `rol !== 'tutor'` (alguien de staff
+    tocando esta pantalla por error) muestra un mensaje y no navega a
+    nada del portal. Si es tutor, pide `/tutores/me/alumnos` con el
+    `access_token` recién recibido (no con el `token` del estado de
+    contexto, que todavía no se actualizó de forma síncrona) y navega
+    directo a `/portal` si hay 1 solo alumno vinculado, o a
+    `/seleccionar-alumno` si hay más de uno.
+  - **`pages/portal/SeleccionarAlumno.jsx`** (nuevo — no existía de
+    ninguna fase anterior, hubo que armarlo): tarjetas simples con
+    nombre de cada alumno vinculado: tocar una lo selecciona
+    (`setAlumnoActivo`) y navega a `/portal`. Estado vacío si el tutor
+    no tiene ninguna alumna vinculada (caso raro, pero real).
+  - **`routes/RequireRole.jsx`** (nuevo, carpeta `routes/` no existía):
+    tal cual el código dado — solo verifica que haya `token`, no el
+    valor de `rol` (el nombre del componente sugiere más de lo que hace
+    hoy; la verificación de rol específico queda para cuando haga falta
+    distinguir tutor de staff dentro del portal mismo). Envuelve
+    `/portal` y `/seleccionar-alumno` en `App.jsx` — antes no tenían
+    ningún guard, a propósito, porque no existía login.
+  - **"Cerrar sesión" real**: el botón vive en `pages/portal/Perfil.jsx`
+    (no en `PortalHeader.jsx` como decía el enunciado — ahí no hay UI de
+    logout, se ajustó al archivo real). Su `ConfirmModal` ya construido
+    en una fase anterior ahora llama `logout()` del `AuthContext` y
+    navega a `/portal-login` en vez de a `/login` (esa ruta es la del
+    panel de administración, no del portal).
+  - **Verificado con Playwright, los 5 casos pedidos + el negativo**:
+    (1) entrar a `/portal` sin login → redirige a `/portal-login`; (2)
+    login Diego (`prueba123`) → selector con Valentina y Martina; (3)
+    elegir una → Home con sus datos reales (probado con Valentina: 50%
+    asistencia, alerta de cuota vencida, todo consistente con lo cargado
+    en la Fase B10); (4) Asistencia y Pagos siguen funcionando mandando
+    el token (sin 401, con los datos reales de Valentina); (5) login
+    Marcela → directo a Home de Sofía sin selector (1 sola alumna,
+    100% asistencia, 0 cuotas pendientes); (6) logout desde Perfil →
+    vuelve a `/portal-login`. **El caso negativo que realmente importa**:
+    logueado como Diego, pedir por `fetch` (con su token real, desde la
+    consola del propio navegador) la asistencia del `alumno_id` de
+    Sofía → **403** — confirma que la autorización de la Fase 3a se
+    respeta también desde el navegador, no solo por `curl`.
+  - ~~Límite conocido, no resuelto en esta fase: si la página se recarga
+    estando logueado...~~ **✅ Resuelto en la Fase 3c**, ver esa entrada
+    más abajo.
+  - `mock/fixtures.js` (`familiaDemo`, usado en el saludo de Home y el
+    encabezado de Perfil) sigue siendo cosmético/mock — no viene del
+    login todavía (el login no devuelve nombre de familia, solo nombre
+    del tutor). Fuera del alcance de esta fase.
+- ✅ **Fase 3c — Rehidratar la sesión al recargar la página** (completada).
+  Cierra el límite que había quedado pendiente al final de la Fase 3b.
+  - **`AlumnoActivoContext` deja de arrancar con el mock**: pasó a
+    arrancar con `alumnosVinculados: []` y `alumnoActivo: null`. Esto
+    era **obligatorio, no opcional**, para que la lógica de `RequireRole`
+    dada en el enunciado funcionara — esa lógica usa
+    `alumnosVinculados.length === 0` para decidir si hace falta volver a
+    pedir `/tutores/me/alumnos`, y `!alumnoActivo` para decidir si hace
+    falta mandar a `/seleccionar-alumno`. Con el default viejo (el mock
+    de Sofía, siempre no-vacío y siempre no-null) ninguno de los dos
+    chequeos se hubiera cumplido nunca, y una recarga habría seguido
+    mostrando a Sofía sin importar quién esté logueado de verdad —
+    exactamente el bug que esta fase pedía cerrar.
+  - **`routes/RequireRole.jsx` reescrito** con la lógica dada
+    (verificar token → repoblar `alumnosVinculados` si hace falta →
+    mostrar `Spinner` mientras tanto → mandar a `/seleccionar-alumno` si
+    no hay `alumnoActivo` → dejar pasar). Se le agregó **una excepción
+    no pedida explícitamente pero necesaria**: si ya está en
+    `/seleccionar-alumno`, no aplica el chequeo de `!alumnoActivo` — la
+    lógica dada, aplicada tal cual a esa misma ruta (que también pasa
+    por este guard, porque necesita token), redirige a
+    `/seleccionar-alumno` estando ya ahí, en bucle — la pantalla
+    quedaba completamente en blanco, sin ningún error visible en
+    consola. Encontrado recién al probar en el navegador, no se veía
+    con una lectura del código.
+  - **Segundo bug encontrado probando, más sutil**: repoblar
+    `alumnosVinculados` no alcanza para saber *cuál* alumno estaba
+    elegido antes de la recarga — para un tutor con +1 alumna (Diego),
+    tras un F5 el pedido explícito de la tarea era volver a ver los
+    datos de la que ya había elegido, no que le vuelvan a preguntar. La
+    primera implementación intentó resolver esto con un `useEffect`
+    aparte en `AlumnoActivoContext` reaccionando a cambios en
+    `alumnosVinculados` (buscar en `localStorage` el id guardado y
+    restaurarlo) — **tenía una carrera real**: `verificando` podía pasar
+    a `false` (sacando el spinner) en un render antes de que ese efecto
+    aparte llegara a restaurar `alumnoActivo`, y `RequireRole` mandaba
+    de más al selector aunque el alumno recordado existiera. Se movió la
+    restauración al mismo `.then()` que repuebla la lista (mismo
+    callback síncrono que guarda `alumnosVinculados` y, si corresponde,
+    `alumnoActivo`, antes de que se dispare el `.finally()` que saca el
+    spinner) — sin efecto aparte, sin carrera. `AlumnoActivoContext`
+    ahora solo se encarga de *guardar* el id elegido en
+    `localStorage` (`crear_alumno_activo_id`) cuando se llama
+    `setAlumnoActivo`; quien lo *restaura* es `RequireRole`, en el lugar
+    donde ya tiene la lista fresca a mano.
+    `AuthContext.logout()` también limpia esa clave (no es estrictamente
+    necesario — son UUIDs reales, una colisión entre tutores distintos
+    es virtualmente imposible — pero es la higiene correcta: nada de la
+    sesión anterior debería sobrevivir un logout).
+  - **`pages/portal/SeleccionarAlumno.jsx`**: mismo criterio que ya
+    tenía `PortalLogin` — si `alumnosVinculados.length === 1`, se
+    autoselecciona y navega a `/portal` sin mostrar la lista. Hacía
+    falta acá también (no solo en el login) porque a esta pantalla
+    también se llega por una recarga con `alumnoActivo` en null, no
+    solo recién saliendo del formulario de login.
+  - **Verificado con Playwright, los 2 casos pedidos + los que hicieron
+    falta para encontrar los bugs de arriba**: logueado como Diego,
+    elegir a Martina, navegar a Pagos, F5 → sigue en `/portal/pagos`
+    mostrando "Cuota mensual — Parcial — $32.000" (el cargo real de
+    Martina), sin pedir elegir de nuevo, sin ningún dato de
+    `cargosDemo`; mismo resultado yendo a Asistencia ("Asistencia de
+    Martina", 83%, 5/6). Borrar `crear_token` a mano desde la consola +
+    F5 → `/portal-login` directo, sin pantalla en blanco ni loop.
+    Casos de regresión confirmados de nuevo por las dudas: login
+    Marcela (1 sola alumna) + F5 → sigue en `/portal` con los datos de
+    Sofía (100%); entrar a `/seleccionar-alumno` sin token → redirige a
+    `/portal-login` en vez de mostrar la pantalla en blanco del bug.
+- ✅ **Fase B11 — Conectar Clases + Horarios a datos reales** (completada).
+  - **`relationship()` nuevos**: `GrupoClase.profesora` (hacia `Usuario`)
+    y `GrupoClase.horarios` (uno-a-muchos hacia `GrupoClaseHorario`).
+    `GrupoClase.disciplina` e `Inscripcion.grupo_clase` ya existían desde
+    la Fase B7, se reusaron tal cual.
+  - **`gestion_datos.py` extendido** con `crear_horario_clase` (misma
+    firma que se dio). **Al revisar los datos de prueba, el grupo de
+    Danza Clásica no tenía ninguna fila en `grupo_clase_horario`**
+    (nunca se había cargado un horario en ninguna fase anterior) — se
+    agregaron 2 (lunes y miércoles 18:00–19:30, mismo horario que ya
+    usaba `misClasesDemo` en el mock, para poder comparar visualmente).
+    Se sumó además un segundo grupo, disciplina "Jazz" (viernes
+    17:00–18:00), e inscribió a Valentina ahí también — es la única de
+    las 3 alumnas con 2 clases, justamente para que su calendario en
+    Horarios se vea distinto al de sus hermanas (ver tabla en "Datos de
+    prueba disponibles").
+  - **`GET /alumnos/{alumno_id}/clases`** (`app/routers/clases.py` +
+    `app/schemas/clase.py`) — mismo patrón de autorización que
+    `/asistencia`/`/cargos` (`verificar_acceso_a_alumno`, reusada tal
+    cual, sin cambios). Devuelve las inscripciones **activas** del
+    alumno, con `hora_inicio`/`hora_fin` formateadas a `"HH:MM"` desde
+    los `time` de Python (`.strftime("%H:%M")`) — el schema pide texto,
+    no vienen así solos.
+  - **Frontend — adaptación de forma, no solo agregar el fetch**:
+    `utils/format.js` (`ocurrenciasDeClaseEnMes`, `itemsDelDia`, etc., ya
+    existentes desde que el portal era 100% mock) esperan
+    `horarios[].diaSemana/.horaInicio/.horaFin` en **camelCase** — la API
+    real devuelve `dia_semana`/`hora_inicio`/`hora_fin` en snake_case.
+    `hooks/useClases.js` hace esa traducción (función `adaptarClase`) en
+    vez de tocar `utils/format.js`, que es código puro compartido y no
+    tiene por qué saber de la forma de la API. También arma ahí mismo el
+    string de horario para mostrar ("Lunes y Miércoles 18:00–19:30",
+    agrupando por rango horario) — la API solo da el array estructurado,
+    no un string ya armado.
+  - **Nombre de la clave devuelta por el hook, distinto de lo pedido**:
+    el enunciado decía `{ datos, cargando, error }`; se usó
+    `{ clases, cargando, error }` en su lugar, mismo criterio de nombrado
+    específico por recurso que ya tienen `useAsistencias`
+    (`asistencias`) y `useCargos` (`cargos`) — no una clave genérica
+    `datos` distinta al resto de los hooks del proyecto.
+  - **`pages/portal/Clases.jsx` — la sección "Mis clases" y "Clases
+    disponibles" dejaron de compartir un solo hook**: antes las dos
+    salían de `useClases()` (mockeado). Ahora "Mis clases" sale de
+    `useClases()` real (con su propio estado de `cargando`/`error`,
+    acotado a esa tarjeta, no a la página entera — a diferencia de
+    Asistencia/Pagos, esta página es mitad real/mitad mock a propósito,
+    así que un error en la parte real no debía tapar la parte mock que
+    sigue andando); "Clases disponibles" pasó a importar
+    `clasesDisponiblesDemo`/`solicitudesInscripcionDemo` directo del
+    mock, con el estado de `solicitudes` manejado en la propia página,
+    marcado `// MOCK A PROPÓSITO` — el cupo por clase no existe en el
+    modelo real (`grupo_clase` no tiene esa columna), documentado en
+    `backend/SCHEMA.md` en la sección de propuestas sin confirmar.
+  - **`pages/portal/Horarios.jsx`**: pasó a usar el mismo `useClases()`
+    real (ya trae `horarios` estructurado, no hace falta una segunda
+    consulta) — página de un solo propósito (a diferencia de Clases.jsx),
+    así que sí sigue el patrón completo de página-entera-en-error como
+    Asistencia/Pagos.
+  - **Verificado con `curl` y en el navegador con Playwright**: Martina
+    (`GET /clases`) devuelve 1 sola clase (Danza Clásica); Valentina
+    devuelve 2 (Danza Clásica + Jazz) — confirmado también visualmente:
+    "Mis clases" de cada una se ve distinta, "Clases disponibles" se ve
+    igual en las dos (mock estático, no se mezcla con lo real), y el
+    calendario de Horarios de Valentina marca puntos los viernes además
+    de lunes/miércoles, cosa que el de Martina no tiene.
+- ✅ **Fase B12 — Conectar Evaluaciones a datos reales** (completada).
+  - **`relationship()` nuevos**: `Calificacion.examen_criterio`,
+    `Calificacion.alumno`, `ExamenCriterio.examen`,
+    `ExamenCriterio.criterio` (hacia `CriterioEvaluacion`),
+    `Examen.grupo_clase`. Ninguno existía todavía (se revisaron los 5
+    modelos antes de escribir nada, como pedía la tarea, y los 5 solo
+    tenían `ForeignKey` crudas).
+  - **`gestion_datos.py` extendido** con las 4 funciones pedidas
+    (`crear_criterio`, `crear_examen`, `agregar_criterio_a_examen`,
+    `calificar`) tal cual se dieron. **Además**, se le agregó un
+    parámetro opcional `es_profesorado=False` a `crear_grupo_clase`
+    (que hasta ahora lo fijaba siempre en `False`, sin forma de
+    cambiarlo) — hacía falta porque `Evaluaciones.jsx` filtra por ese
+    campo ("Solo Profesorado") y el grupo de Danza Clásica, creado en la
+    Fase B7 antes de que este filtro importara, tenía `es_profesorado`
+    en `False`. Sin este cambio, las calificaciones cargadas iban a
+    existir en la base pero el filtro del front las iba a esconder a
+    todas — se notó recién al leer `Evaluaciones.jsx` con cuidado, no
+    estaba explícito en el pedido.
+  - **Datos de prueba**: 1 examen ("Examen Final 2026") sobre el grupo de
+    Danza Clásica, 3 criterios con los mismos nombres que ya usaba el
+    mock (`Expresión`/`Ritmo`/`Técnica`, para comparar visualmente sin
+    fijarse en el código) y calificaciones para Sofía y Martina —
+    **distintas a propósito** (Sofía 9/8/9 = 8.7 de promedio, Martina
+    7/6.5/7.5 = 7.0) para que la prueba confirme algo real, no que las
+    dos vean la misma pantalla con otro nombre arriba. Valentina no
+    tiene calificaciones (no está en el grupo que tiene el examen).
+  - **`GET /alumnos/{alumno_id}/evaluaciones`** (`app/routers/evaluaciones.py`
+    + `app/schemas/evaluacion.py`) — mismo patrón de autorización que el
+    resto (`verificar_acceso_a_alumno`, sin cambios). Trae todas las
+    `Calificacion` del alumno (una fila por criterio) y las agrupa por
+    examen en Python armando un diccionario `{examen_id: EvaluacionOut}`
+    — la tabla no tiene una fila "por examen", cada calificación es
+    suelta y hay que juntarlas. `titulo` sale de `examen.descripcion`
+    con el mismo fallback que el mock (`"Evaluación — {grupo_nombre}"`
+    si es null).
+  - **`EvaluacionOut` con un campo de más, agregado a propósito**: el
+    schema pedido no tenía `es_profesorado`. Se agregó porque
+    `Evaluaciones.jsx` necesita ese dato para el filtro y no hay ninguna
+    otra fuente de él del lado del front (`ClaseOut`, de la Fase B11,
+    tampoco lo expone) — sale gratis, el join a `grupo_clase` ya hacía
+    falta para `grupo_nombre`. Es la opción que pedía la propia tarea
+    evaluar ("¿lo devuelve el endpoint, o hay que resolverlo del lado
+    del front?") — resolverlo del lado del front hubiera necesitado
+    inventar una fuente de datos que hoy no existe en ningún lado.
+  - **Frontend**: `getEvaluaciones` en `api/client.js`. `useEvaluaciones`
+    reescrito real-only, `{ evaluaciones, cargando, error }` (mismo
+    nombrado específico por recurso que `useAsistencias`/`useCargos`/
+    `useClases`, no el `{ datos, ... }` genérico — mismo ajuste que ya
+    se hizo en la Fase B11). Adapta la forma snake_case de la API
+    (`grupo_nombre`/`es_profesorado`/`criterio_nombre`) a la camelCase
+    que ya esperaban `Evaluaciones.jsx` y `promedioExamen`/
+    `promedioGeneral` de `utils/format.js` — esas funciones no se
+    tocaron, tal como pedía la tarea.
+  - **Verificado con `curl` y en el navegador con Playwright**: Sofía
+    (token de Marcela) y Martina (token de Diego) devuelven el mismo
+    examen con notas distintas; Valentina devuelve `[]`. En el portal,
+    "Evaluaciones de Sofía" muestra promedio **8.7** y "Evaluaciones de
+    Martina" muestra promedio **7** — calculados por las mismas
+    funciones de `utils/format.js` sin modificar, solo con datos reales
+    en vez de `evaluacionesDemo`.
+- ✅ **Fase B13 — Conectar Perfil a datos reales** (completada).
+  - **`GET /configuracion`** (`app/routers/configuracion.py` +
+    `app/schemas/configuracion.py`) — solo devuelve
+    `plazo_dias_apto_fisico`/`umbral_asistencia_alerta`, tal cual pedía
+    la tarea; `mp_access_token`/`kapso_api_key` siguen sin exponerse en
+    ninguna respuesta (ver comentarios en el modelo).
+  - **Gap real encontrado probando**: `configuracion_sistema` es una
+    fila única de sistema, pero **nada en el proyecto la creaba nunca**
+    — ni una migración, ni `cargar_datos_reales.py` hasta ahora. Contra
+    una base recién armada, `GET /configuracion` le pegaba a una tabla
+    vacía y rompía. Se agregó `crear_configuracion_inicial(db)` a
+    `gestion_datos.py` — **es la única función de todo el archivo que sí
+    es idempotente a propósito** (busca antes de crear): no tiene
+    sentido una segunda fila de configuración de sistema, a diferencia
+    del resto de las altas reales de este script. Se llama al principio
+    de `cargar_datos_reales.py`. Todos los campos quedan en su
+    `server_default` (ver `backend/SCHEMA.md`).
+  - **Cierra un gap documentado desde la Fase B2**: el comentario en
+    `models/configuracion_sistema.py` decía *"el mock del frontend usa
+    365, no 30 — discrepancia a resolver con la compañera antes de
+    conectar el portal a este valor real"*. Ya está conectado (`Home.jsx`
+    y `Perfil.jsx` usan `useConfiguracion()`), así que el valor real
+    (`30`, el `server_default` de la base) es el que manda ahora — el
+    comentario se actualizó para reflejar esto en vez de seguir
+    describiendo una discrepancia ya resuelta por conexión, no por
+    acuerdo con la compañera (que sigue sin confirmarse; ver el
+    comentario actualizado).
+  - **`GET /tutores/me` y `PATCH /tutores/me`** (mismo router
+    `tutores.py`, `app/schemas/tutor.py` nuevo) — tal cual el código
+    dado. `PATCH` persiste de verdad contra la base (`db.commit()`), a
+    diferencia del mock viejo que solo actualizaba estado en memoria de
+    React y volvía al valor original al recargar la página.
+  - **`GET /tutores/me/alumnos` extendido** con `apto_fisico_presentado`/
+    `apto_fisico_fecha` — mismo endpoint de la Fase 3a, no uno nuevo,
+    tal cual pedía la tarea.
+  - **`gestion_datos.py`: `crear_alumno` con 2 parámetros opcionales
+    más** (`apto_fisico_presentado=False`, `apto_fisico_fecha=None`,
+    default compatible con las llamadas ya existentes) — no estaba en
+    el pedido de esta fase, pero hacía falta: sin datos de prueba
+    variados, las 3 alumnas iban a caer todas en la misma rama de
+    `estadoAptoFisico()` ("no presentó todavía") y el checklist propio
+    de la tarea ("el apto físico de cada alumna calcula bien contra el
+    plazo real") no se podía confirmar de verdad — solo se hubiera
+    probado la rama fácil. Se cargaron los 3 casos: Sofía **vigente**
+    (presentado 2026-09-05, plazo 30 días → vence 2026-10-05), Martina
+    **vencido** (presentado 2026-06-01, ya pasado), Valentina **sin
+    presentar** (default, sin cambios) — las 3 ramas de la función
+    quedan cubiertas.
+  - **Frontend**: `getConfiguracion`/`getMiPerfil`/`actualizarMiPerfil`
+    en `api/client.js`. `getMisAlumnos` (ya existente, Fase 3a) ahora
+    también adapta `apto_fisico_presentado`/`apto_fisico_fecha`
+    (snake_case) a `aptoFisicoPresentado`/`aptoFisicoFecha` (camelCase,
+    lo que ya espera `estadoAptoFisico()`) — se hace ahí mismo porque
+    esa llamada no pasa por ningún hook (se usa directo desde
+    `PortalLogin`/`RequireRole`), no había otro lugar natural para la
+    adaptación. `hooks/useConfiguracion.js` y `hooks/useTutorPerfil.js`
+    nuevos, real-only, `{ configuracion, cargando, error }` y `{ tutor,
+    cargando, error, actualizarPerfil }` — nombrado por recurso, mismo
+    criterio que el resto.
+  - **`Home.jsx`**: el umbral hardcodeado (`umbralAsistenciaDemo`, 75)
+    pasó a salir de `useConfiguracion()`. Con un respaldo de `75` **solo**
+    para el caso de que la llamada falle (no mientras carga — se espera
+    a que termine antes de calcular alertas) — mismo valor que el
+    `server_default` real de la base, no un mock reintroducido por la
+    puerta de atrás, para que un fallo puntual de esta llamada no
+    crítica no rompa toda la página.
+  - **`Perfil.jsx` reescrito**: encabezado usa `useTutorPerfil()`
+    (nombre + apellido reales, sin "Familia X" ni DNI inventado — el
+    modelo `padre_tutor` ni siquiera tiene columna de DNI). "Mis
+    alumnas" usa `configuracion.plazo_dias_apto_fisico` real en vez de
+    `configInstitucionalDemo.plazoDiasAptoFisico` (365, mock). Se sacó
+    también la línea de `alumno.grupoPrincipal` de esa lista — no
+    estaba pedido explícitamente, pero ya venía renderizando vacío para
+    cualquier tutor real desde la Fase 3b (el campo nunca existió en la
+    respuesta real de `/tutores/me/alumnos`), así que se limpió de paso
+    en vez de dejar una línea en blanco conocida. Agregado un estado de
+    carga (`Skeleton`) y uno de error (`EmptyState`), que la página no
+    tenía de ninguna fase anterior (corría siempre sincrónica sobre el
+    mock).
+  - **`EditarContactoModal.jsx`**: pasó de editar
+    `telefono`/`email`/`domicilio` de la alumna activa a editar
+    `telefono`/`email` del tutor — sin campo de domicilio (no existe en
+    `padre_tutor`). `onGuardar` en `Perfil.jsx` ahora llama
+    `actualizarPerfil()` (con `await`, antes de mostrar el Toast) en vez
+    de `actualizarAlumnoActivo()`.
+  - **Verificado con `curl` y en el navegador con Playwright**: header
+    del portal muestra "Diego Torres" (no "Familia Torres", sin DNI);
+    Valentina "No presentó apto físico todavía", Martina "Apto físico
+    vencido desde el 1 de jul de 2026", Sofía "Apto físico vigente hasta
+    el 5 de oct de 2026" — las 3 ramas confirmadas con datos reales;
+    editar el email del tutor y recargar la página (F5) mantiene el
+    cambio (a diferencia del mock, que volvía al valor original) — se
+    confirmó de hecho sin querer en el propio testeo, al notar que el
+    login con el email viejo dejaba de funcionar después de cambiarlo,
+    exactamente lo que se esperaría de una persistencia real; la alerta
+    de Home de Valentina ("por debajo del mínimo de 75%") sigue
+    disparando igual que antes, ahora con el umbral viniendo de
+    `/configuracion` en vez de hardcodeado.
 
 ### Notas de implementación / ajustes al spec por convenciones reales del repo
 

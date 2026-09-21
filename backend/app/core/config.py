@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     postgres_user: str = "crear"
     postgres_password: str = "cambiar_en_local"
     postgres_db: str = "crear_db"
+    secret_key: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -7,12 +7,12 @@ import AlertaHome from '../../components/portal/AlertaHome'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useAsistencias } from '../../hooks/useAsistencias'
 import { useCargos } from '../../hooks/useCargos'
+import { useConfiguracion } from '../../hooks/useConfiguracion'
 import {
   familiaDemo,
   proximoEventoDemo,
   horariosResumenDemo,
   grupoAsistenciaDemo,
-  umbralAsistenciaDemo,
 } from '../../mock/fixtures'
 import { agruparAsistenciasPorMes, calcularAlertas, calcularPorcentajeAsistencia, formatMesLabel } from '../../utils/format'
 
@@ -41,7 +41,8 @@ export default function Home() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
   const { asistencias, cargando: cargandoAsistencias } = useAsistencias(alumnoActivo?.id)
   const { cargos, cargando: cargandoCargos } = useCargos(alumnoActivo?.id)
-  const cargando = cargandoAsistencias || cargandoCargos
+  const { configuracion, cargando: cargandoConfig } = useConfiguracion()
+  const cargando = cargandoAsistencias || cargandoCargos || cargandoConfig
 
   if (cargando) {
     return (
@@ -64,9 +65,14 @@ export default function Home() {
   const mesActual = mesesOrdenados[mesesOrdenados.length - 1]
   const asistenciasMesActual = porMes[mesActual] ?? []
 
+  // 75 de respaldo solo por si /configuracion falló (no cargando: ya se
+  // esperó a que termine) — mismo valor que el server_default real en la
+  // base, no un mock; evita que un fallo puntual de esta llamada no
+  // crítica rompa el cálculo de alertas de toda la página.
+  const umbral = configuracion?.umbral_asistencia_alerta ?? 75
   const porcentajeAsistencia = calcularPorcentajeAsistencia(asistenciasMesActual)
   const cuotasPendientes = cargos.filter((c) => c.estado !== 'pagado').length
-  const alertas = calcularAlertas({ cargos, asistenciasDelMes: asistenciasMesActual, umbral: umbralAsistenciaDemo })
+  const alertas = calcularAlertas({ cargos, asistenciasDelMes: asistenciasMesActual, umbral })
 
   return (
     <div className="p-4 space-y-4">
@@ -89,7 +95,7 @@ export default function Home() {
         onClick={() => navigate('/portal/asistencia')}
         className="bg-white rounded-2xl border border-gray-100 shadow-card p-5 flex items-center gap-4 cursor-pointer hover:shadow-card-md transition-shadow"
       >
-        <RadialProgress porcentaje={porcentajeAsistencia} tamano={72} umbral={umbralAsistenciaDemo} />
+        <RadialProgress porcentaje={porcentajeAsistencia} tamano={72} umbral={umbral} />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{grupoAsistenciaDemo.nombre}</p>
           <p className="text-xs text-gray-400">{mesActual ? formatMesLabel(mesActual) : ''}</p>

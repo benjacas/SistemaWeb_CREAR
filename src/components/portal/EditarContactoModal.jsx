@@ -3,18 +3,19 @@ import Modal from '../ui/Modal'
 import Input from '../ui/Input'
 import Button from '../ui/Button'
 
-export default function EditarContactoModal({ isOpen, onClose, alumno, onGuardar }) {
-  const [form, setForm] = useState({ telefono: '', email: '', domicilio: '' })
+// Edita los datos del tutor (email/teléfono), no de la alumna — ver Fase
+// B13. Sin campo de domicilio: no existe en `padre_tutor` del lado real.
+export default function EditarContactoModal({ isOpen, onClose, datosActuales, onGuardar }) {
+  const [form, setForm] = useState({ telefono: '', email: '' })
 
   useEffect(() => {
-    if (isOpen && alumno) {
+    if (isOpen && datosActuales) {
       setForm({
-        telefono: alumno.telefono ?? '',
-        email: alumno.email ?? '',
-        domicilio: alumno.domicilio ?? '',
+        telefono: datosActuales.telefono ?? '',
+        email: datosActuales.email ?? '',
       })
     }
-  }, [isOpen, alumno])
+  }, [isOpen, datosActuales])
 
   function handleGuardar() {
     onGuardar(form)
@@ -34,11 +35,6 @@ export default function EditarContactoModal({ isOpen, onClose, alumno, onGuardar
           type="email"
           value={form.email}
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        />
-        <Input
-          label="Domicilio"
-          value={form.domicilio}
-          onChange={(e) => setForm((f) => ({ ...f, domicilio: e.target.value }))}
         />
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>

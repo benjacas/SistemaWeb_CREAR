@@ -1,6 +1,7 @@
 import { useContext, useState } from 'react'
-import { Users, PartyPopper } from 'lucide-react'
+import { Users, PartyPopper, AlertTriangle } from 'lucide-react'
 import Spinner from '../../components/ui/Spinner'
+import EmptyState from '../../components/ui/EmptyState'
 import CalendarioMensual from '../../components/portal/CalendarioMensual'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useClases } from '../../hooks/useClases'
@@ -30,11 +31,21 @@ function FilaItem({ item, subtitulo }) {
 
 export default function Horarios() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { misClases, cargando } = useClases(alumnoActivo?.id)
+  const { clases: misClases, cargando, error } = useClases(alumnoActivo?.id)
   const [mesVisto, setMesVisto] = useState({ anio: hoy.getFullYear(), mes: hoy.getMonth() })
   const [diaSeleccionado, setDiaSeleccionado] = useState(null)
 
   if (cargando) return <Spinner className="mt-20" />
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="No se pudieron cargar los horarios"
+        description="Hubo un problema al conectar con el servidor. Probá de nuevo en un momento."
+      />
+    )
+  }
 
   function cambiarMes(delta) {
     setMesVisto(({ anio, mes }) => {

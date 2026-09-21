@@ -2,6 +2,7 @@ import enum
 
 from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey, Enum, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -31,3 +32,7 @@ class GrupoClase(Base):
     # "default vs server_default en enums".
     estado = Column(Enum(EstadoGrupo, name="estado_grupo"), nullable=False, server_default=text("'activo'"))
     arancel_mensual = Column(Numeric, nullable=True)
+
+    disciplina = relationship("Disciplina")
+    profesora = relationship("Usuario")
+    horarios = relationship("GrupoClaseHorario")

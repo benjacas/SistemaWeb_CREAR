@@ -1,6 +1,8 @@
 import { useContext } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Skeleton from '../../components/ui/Skeleton'
+import EmptyState from '../../components/ui/EmptyState'
 import { AlumnoActivoContext } from '../../context/AlumnoActivoContext'
 import { useEvaluaciones } from '../../hooks/useEvaluaciones'
 import { formatFecha, promedioExamen, promedioGeneral } from '../../utils/format'
@@ -16,7 +18,7 @@ function agruparPorGrupo(evaluaciones) {
 
 export default function Evaluaciones() {
   const { alumnoActivo } = useContext(AlumnoActivoContext)
-  const { evaluaciones, cargando } = useEvaluaciones(alumnoActivo?.id)
+  const { evaluaciones, cargando, error } = useEvaluaciones(alumnoActivo?.id)
 
   if (cargando) {
     return (
@@ -32,6 +34,16 @@ export default function Evaluaciones() {
           </div>
         ))}
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="No se pudieron cargar las evaluaciones"
+        description="Hubo un problema al conectar con el servidor. Probá de nuevo en un momento."
+      />
     )
   }
 

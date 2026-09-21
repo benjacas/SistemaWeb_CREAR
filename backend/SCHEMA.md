@@ -135,9 +135,17 @@ todavía. `auth_user_id` no aparece en ninguna tabla a propósito (ver
 ### Núcleo: personas y grupos familiares
 
 - **`usuario`**: `nombre`, `apellido` NOT NULL. `email` NOT NULL UNIQUE.
-  `rol` (enum `rol_usuario`, NOT NULL, sin default — ⚠️ valores
-  `administrador/secretaria/profesor/alumno/tutor` tomados del Claude.md
-  del portal, no confirmados contra el enum real de Postgres). `estado`
+  `rol` (enum `rol_usuario`, NOT NULL, sin default — **confirmados los 5
+  valores contra la base real en la Fase 3a** (`SELECT unnest(enum_range(
+  NULL::rol_usuario))`): `administrador/secretaria/profesor/alumno/tutor`.
+  ⚠️ **`alumno` y `tutor` son valores de más, sin uso**: el rol de una
+  identidad se determina por en qué tabla se la encontró al loguearse
+  (`usuario` → el valor real de `usuario.rol`, que en la práctica solo
+  es `administrador/secretaria/profesor`; `padre_tutor` → siempre
+  `"tutor"` fijo, no sale de ninguna columna) — ver `app/routers/auth.py`.
+  No se migró el enum para sacarlos todavía, revisar si conviene
+  limpiarlos en una migración futura una vez que el login esté asentado.
+  `estado`
   (enum `estado_usuario`, NOT NULL, default `'activo'` — ⚠️ solo el
   default está confirmado, el resto de los valores no). `fecha_alta`
   (date, NOT NULL, default `CURRENT_DATE`). `password_hash` (NULLABLE,
@@ -175,6 +183,13 @@ todavía. `auth_user_id` no aparece en ninguna tabla a propósito (ver
   `usuario`, NOT NULL). `estado` (enum `estado_grupo`, NOT NULL, default
   `'activo'` — ⚠️ solo el default confirmado). `arancel_mensual`
   (numeric, nullable). Sin `CHECK`.
+  - ⚠️ **`NUEVO`/propuesto, sin confirmar, sin agregar todavía**: no
+    tiene columna de cupo/capacidad por clase. La pantalla "Clases
+    disponibles" del portal (`clasesDisponiblesDemo`) muestra
+    `cupoDisponible`/`capacidad` por clase, pero eso sigue siendo mock —
+    no hay endpoint real para esa sección (ver Claude.md, Fase B11).
+    Agregar `cupo_maximo` (o similar) acá si se decide construir esa
+    parte con datos reales.
 - **`grupo_clase_horario`**: `grupo_clase_id` (FK, NOT NULL). `dia_semana`
   (enum `dia_semana`, NOT NULL, sin default — **valores confirmados**:
   `lunes/martes/miercoles/jueves/viernes/sabado`, sin domingo a

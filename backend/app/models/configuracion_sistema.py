@@ -22,10 +22,14 @@ class ConfiguracionSistema(Base):
     dia_vencimiento_cuota = Column(Integer, nullable=False, server_default=text("10"))
     porcentaje_recargo_mora = Column(Numeric, nullable=False, server_default=text("5.00"))
     porcentaje_descuento_familiar = Column(Numeric, nullable=False, server_default=text("10.00"))
-    # NOTA: el mock del frontend (configInstitucionalDemo.plazoDiasAptoFisico
-    # en mock/fixtures.js) usa 365, no 30 — discrepancia a resolver con la
-    # compañera antes de conectar el portal a este valor real.
     umbral_asistencia_alerta = Column(Numeric, nullable=False, server_default=text("75.00"))
+    # Conectado en la Fase B13 (GET /configuracion, useConfiguracion() en
+    # el front) — el mock viejo (configInstitucionalDemo.plazoDiasAptoFisico
+    # en mock/fixtures.js) usaba 365 en vez de este valor real (30); ya no
+    # importa, Perfil.jsx usa este valor directamente. La discrepancia en sí
+    # (si 30 días es el plazo real que la academia quiere, o si el mock
+    # tenía razón con 365) sigue sin confirmarse con la compañera — eso no
+    # se resolvió, solo se dejó de mockear.
     plazo_dias_apto_fisico = Column(Integer, nullable=False, server_default=text("30"))
     cupo_maximo_default = Column(Integer, nullable=False, server_default=text("25"))
     habilitar_mercadopago = Column(Boolean, nullable=False, server_default=text("false"))

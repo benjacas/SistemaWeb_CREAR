@@ -2,6 +2,7 @@ import enum
 
 from sqlalchemy import Column, String, Text, Integer, Date, Numeric, ForeignKey, Enum, Index, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -50,6 +51,9 @@ class Cargo(Base):
     columna = Column(Integer, nullable=True)
     vestuario_evento_id = Column(UUID(as_uuid=True), ForeignKey("vestuario_evento.id"), nullable=True)
     # ───────────────────────────────────────────────────────────────────
+
+    concepto_cobro = relationship("ConceptoCobro")
+    pagos = relationship("Pago", back_populates="cargo")
 
     __table_args__ = (
         # Anti-sobreventa de butacas: evita que dos cargos "vivos" reserven

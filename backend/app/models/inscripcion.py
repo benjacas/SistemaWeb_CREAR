@@ -2,6 +2,7 @@ import enum
 
 from sqlalchemy import Column, Date, ForeignKey, Enum, text
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
@@ -25,3 +26,5 @@ class Inscripcion(Base):
     # "default vs server_default en enums".
     estado = Column(Enum(EstadoInscripcion, name="estado_inscripcion"), nullable=False, server_default=text("'activa'"))
     fecha_baja = Column(Date, nullable=True)
+
+    grupo_clase = relationship("GrupoClase")

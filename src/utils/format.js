@@ -65,6 +65,16 @@ export function infoMetodoPago(metodo) {
   return METODOS_PAGO[metodo] ?? { label: metodo ?? '—', icono: 'banknote' }
 }
 
+// cargo:pago es 1-a-muchos (un cargo parcial puede tener más de un pago en
+// el tiempo), pero la UI actual (Pagos.jsx, ComprobanteModal) solo muestra
+// uno. LÍMITE CONOCIDO: si algún día hay más de un pago por cargo, esto
+// muestra solo el más reciente — no una lista. Retomar cuando haga falta
+// mostrar el historial completo de pagos de un mismo cargo.
+export function ultimoPago(cargo) {
+  if (!cargo?.pagos?.length) return null
+  return [...cargo.pagos].sort((a, b) => b.fecha_pago.localeCompare(a.fecha_pago))[0]
+}
+
 export function calcularPorcentajeAsistencia(asistencias) {
   if (!asistencias || asistencias.length === 0) return 0
   const presentes = asistencias.filter((a) => a.presente).length
